@@ -823,5 +823,5 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         print "\n[!]User Interrupt! Quitting...."
     except:
-        raise
         print "\n\n[!]Please report this error to " + __maintainer__ + "by email at: "+ __email__
+        raise
