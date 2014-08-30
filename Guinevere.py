@@ -577,25 +577,20 @@ def retest():
     for i in original_vuln:
         if original_vuln[i]['vuln_rating'] is not None:
             retest[i] = {'vuln_id': i, 'vuln_title': original_vuln[i]['vuln_title'], 'vuln_rating': original_vuln[i]['vuln_rating'], 'total_orig': len(set(original_vuln[i]['vuln_hosts']))}
-            #print original_vuln[i]['vuln_title']
             if i in retest_vuln:
-                o = set(original_vuln[i]['vuln_hosts'])
-                r = set(retest_vuln[i]['vuln_hosts'])
-                retest[i].update({'total_retest': len(set(retest_vuln[i]['vuln_hosts']))})
-                l = o -r
-                #print "\tRemaining " + str(len(l))+ " Hosts: ", l
+                o = set(original_vuln[i]['vuln_hosts']) #Original
+                r = set(retest_vuln[i]['vuln_hosts'])   #Retest
+                l = o - r                               #Leftover, fixed hosts
+                nr = r - o                               #New Retest Hosts
+                dr = r - nr                             #Delta Retest; only retest hosts that were in the original
+                retest[i].update({'total_retest': len(set(dr))})
                 if len(l) == 0:
-                    #print "\t[!]Fixed"
                     retest[i].update({'status': 'Not Remediated'})
                 else:
-                    #print "\t[!]Partially Fixed"
-                    #print "\t\t[-]Original Hosts: ", o
-                    #print "\t\t[-]Retest Hosts: ", r
                     retest[i].update({'status': 'Partially Remediated'})
-                    retest[i].update({'v_hosts': l})#Hosts still vulnerable
-                    retest[i].update({'f_hosts': (r - o)})
+                    retest[i].update({'v_hosts': dr})#Hosts still vulnerable
+                    retest[i].update({'f_hosts': l}) #Fixed hosts
             else:
-                #print "\t[!]Not Fixed"
                 retest[i].update({'status': 'Remediated'})
 
     #Build Status Table
@@ -657,15 +652,6 @@ def retest():
             row_cells[1].text = ((str(ip_sort(hosts)).replace("'", "")).lstrip("[")).rstrip("]")
 
     #Build stats table
-    retest_report.add_heading('Retest Statistics')
-    stats_table = retest_report.add_table(rows=1, cols=5)
-    stats_table.style = 'MediumGrid1-Accent1'
-    hdr_cells = stats_table.rows[0].cells
-    hdr_cells[0].text = ''
-    hdr_cells[1].text = 'Critical'
-    hdr_cells[2].text = 'High'
-    hdr_cells[3].text = 'Medium'
-    hdr_cells[4].text = 'Low'
     o_total_c = 0   #Original Total Critical
     r_total_c = 0   #Retest Total Critical
     o_total_h = 0
@@ -695,6 +681,20 @@ def retest():
             o_total_l += retest[i]['total_orig']
             if 'total_retest' in retest[i]:
                 r_total_l += retest[i]['total_retest']
+
+    s = "The original security assessment identified (" + str(o_total_c) + ") critical-severity, (" + str(o_total_h) + ") high-severity, (" + str(o_total_m) + ") medium-severity, and (" + str(o_total_l) + ") low-severity vulnerabilities."
+
+    #Setup Table
+    retest_report.add_heading('Retest Statistics')
+    retest_report.add_paragraph(s)
+    stats_table = retest_report.add_table(rows=1, cols=5)
+    stats_table.style = 'MediumGrid1-Accent1'
+    hdr_cells = stats_table.rows[0].cells
+    hdr_cells[0].text = ''
+    hdr_cells[1].text = 'Critical'
+    hdr_cells[2].text = 'High'
+    hdr_cells[3].text = 'Medium'
+    hdr_cells[4].text = 'Low'
     #Original Assessment Numbers
     row_cells = stats_table.add_row().cells
     row_cells[0].text = 'Original'
@@ -823,5 +823,5 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         print "\n[!]User Interrupt! Quitting...."
     except:
-        print "\n\n[!]Please report this error to " + __maintainer__ + "by email at: "+ __email__
+        print "\n[!]Please report this error to " + __maintainer__ + "by email at: "+ __email__
         raise
