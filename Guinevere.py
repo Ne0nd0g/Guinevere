@@ -816,6 +816,54 @@ def get_path():
             output_path = None
     return output_path
 
+def write_single_vul(rpt, report):
+    """Write the vulnerability paragraph"""
+
+    report.add_heading(rpt['report_title'] + " (" + rpt['report_rating']+")")
+
+    for i in rpt['vulns']:
+        hosts = ip_sort(list(set(rpt['vulns'][i]['vuln_hosts']))) #Create a unique & sorted list of hosts (avoids duplicate hosts)
+        if len(hosts) > 5: #If more than 5 hosts, draw a table
+            pass
+        else:
+            p = rpt['report_identification'].replace("[n]", int_to_string(len(hosts)))
+
+            p += rpt['report_explanation']
+            p += rpt['report_impact']
+            p += rpt['']
+            report.add_paragraph(p, style='Normal')
+            report.add_paragraph(rpt['report_recommendation'], style='Normal')
+    return report
+
+def testing():
+    """The main function for automatically generating an assessment report"""
+
+    os.system('clear')
+    banner()
+    print "Retrieving available assessments..."
+    assessment = get_assessment("the assessmnt to create a report for")
+    banner()
+    crosstable = get_crosstable(assessment)
+    vID = assessment_vulns(assessment, crosstable)
+    os.system('clear')
+    banner()
+    print "[-]Building list of found vulnerabilities for " + assessment + " Crosstable " + crosstable + "..."
+    vuln = get_vulns(vID, assessment, crosstable)
+    print "[-]Generating report for the following vulnerabilities:"
+    rID = assessment_report(vuln)
+    assessment_db = get_report(rID, vuln)
+    the_Report = docx.Document()
+    the_Report = generate_vuln_list(the_Report, assessment, assessment_db)
+    if ((len(assessment_db) is 0) and args.all_vulns is False):
+        print "[!]Nothing to report on, quitting..."
+    else:
+        for i in assessment_db:
+            if len(assessment_db[i]['vulns']) > 1:  #Grouped Vulnerabilty Write-up
+                print 'Multi finding: ', assessment_db[i]['report_title']
+            else:                                   #Single Vulnerability Write-up
+                the_Report = write_single_vul(assessment_db[i], the_Report)
+    the_Report = generate_hosts_table(the_Report, assessment)
+    save_report(the_Report, assessment)
 
 if __name__ == '__main__':
     try:
