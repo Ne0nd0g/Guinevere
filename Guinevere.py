@@ -13,15 +13,16 @@ import MySQLdb, os, docx, argparse, math, netaddr
 #################################################
 __author__ = "Russel Van Tuyl"
 __license__ = "GPL"
-__version__ = "0.7"
+__version__ = "0.8"
 __maintainer__ = "Russel Van Tuyl"
 __email__ = "Russel.VanTuyl@gmail.com"
 __status__ = "Development"
 #################################################
-g_ip = "127.0.0.1"         #Gauntlet Database IP address
-g_p = 3306                 #Gauntlet Database Port
-g_user = "gauntlet"        #Gauntlet User
-g_pass = "password"        #Gauntlet Password
+#CHANGE TO MATCH YOUR DATABASE
+g_ip = "127.0.0.1"         # Database IP address
+g_p = 3306                 # Database Port
+g_user = "gauntlet"        # Database Username
+g_pass = "password"        # Database Password
 #################################################
 
 #Parse command line arguments
@@ -256,102 +257,6 @@ def get_report(report_IDs, vuln):
             rpt[i]['report_rating'] = None
     return rpt
 
-def generate_report(rpt, vuln, file):
-    """Build the assessment report"""
-
-    for i in rpt:
-        #Add Title and Severity
-        if (((rpt[i]['report_rating'] is "Critical") and args.sC) or ((rpt[i]['report_rating'] is "High") and args.sH) or ((rpt[i]['report_rating'] is "Medium") and args.sM) or ((rpt[i]['report_rating'] is "Low") and args.sL) or ((rpt[i]['report_rating'] is "Informational") and args.sI)):
-            #Count Number of Hosts
-            hosts = []
-            for j in rpt[i]['vulns']:
-                for k in rpt[i]['vulns'][j]['vuln_hosts']:
-                    hosts.append(k[0])
-            hosts = ip_sort(list(set(hosts))) #Create a unique & sorted list of hosts (avoids duplicate hosts)
-            if len(hosts) > 0:  #Make sure there are hosts associated with the vulnerability, they could be deselected in Gauntlet
-                print "\t[i]" + rpt[i]['report_title'] + " (" + rpt[i]['report_rating'] + ")"
-                file.add_heading(rpt[i]['report_title'] + " (" + rpt[i]['report_rating'] + ")", 2)
-            else:
-                pass
-            #Determine the number of vulnerabilities associated with each report record
-            if len(rpt[i]['vulns']) > 1 and len(hosts) > 0:    #This IF statement is for report records with a single associated vulnerability
-                file.add_paragraph(rpt[i]['report_identification'].replace("[n]", str(len(hosts)) + " hosts") + rpt[i]['report_explanation'] + rpt[i]['report_impact'], style='BodyText')
-                file.add_paragraph(rpt[i]['report_recommendation'], style='BodyText')
-                #Draw Table for each vuln
-            elif len(hosts) > 0:
-                #If less than 6 DONT make a table
-                if len(hosts) < 6 and "[n]" in rpt[i]['report_identification']:
-                    s = " ("
-                    z = len(hosts)
-                    for l in hosts:
-                        if len(hosts) == 1: #If there is only 1 host
-                            s += l
-                            break
-                        elif len(hosts) == 2 and z != 1: #If there are only 2 hosts
-                            s += l
-                        elif z == 1:    #If this is the last host
-                            s += "and " + l
-                        #elif z == len(hosts): #If this is the first host
-                            #s += l[0] + ", "
-                        else:
-                            s += l +", " #All other hosts
-                        z = z-1
-                    s += ")"
-                    #print rpt[i] #DEBUG
-                    #print rpt[i]['report_identification'] #DEBUG
-                    #print rpt[i]['report_explanation'] #DEBUG
-                    #print rpt[i]['report_impact'] #DEBUG
-                    file.add_paragraph(rpt[i]['report_identification'].replace("[n]", int_to_string(len(hosts))+s) + rpt[i]['report_explanation'] + rpt[i]['report_impact'], style='BodyText') #Add 'The assessment team identifies 7 hosts'
-                    file.add_paragraph(rpt[i]['report_recommendation'], style='BodyText')
-                #If there are more than 5 hosts and there is only 1 vuln associated with the report record
-                elif len(hosts) > 5 and "[n]" in rpt[i]['report_identification']:
-                    #print rpt[i] #DEBUG 
-                    file.add_paragraph(rpt[i]['report_identification'].replace("[n]", int_to_string(len(hosts)) +", see TABLE X below, ") + rpt[i]['report_explanation'] + rpt[i]['report_impact'], style='BodyText')
-                    file.add_paragraph(rpt[i]['report_recommendation'], style='BodyText')
-                    #Build Table
-                    #print rpt[i]['report_title'], hosts #DEBUG
-                    c = 4 #number of desired columns
-                    r = int(math.ceil((len(hosts) / float(4)))) #Determine number of rows for table using a max of 4 columns
-                    table = file.add_table(rows=r, cols=c)
-                    table.style = 'MediumGrid1-Accent1'
-                    z = 0   #number of hosts
-                    x = 0   #row indices
-                    y = 0   #column indices
-                    while z < len(hosts):
-                        if (y / float(c)) == 1: #Determine if we need to start putting data on a new row
-                            y = 0   #reset column indices since max number of columns reached
-                            x = x + 1
-                        else:
-                            pass
-                        table.cell(x, y).text = hosts[z]
-                        z = z+1
-                        y = y+1 #Add one to up the column data is put in
-                    #Add "---" for empty spots in table
-                    if len(hosts)/float(c) != 1.000:
-                        d = c * (x+1)
-                        while d > len(hosts):
-                            table.cell(x, y).text = "---"
-                            d = d - 1
-                            y = y + 1
-                    else:
-                        pass
-            else:
-                pass
-
-    
-    #If -A flag is set, print all vulnerabilities
-    if args.all_vulns:
-        for i in vuln:
-            if vuln[i]['vuln_report_id'] is None and (((vuln[i]['vuln_rating'] is "Critical") and args.sC) or ((vuln[i]['vuln_rating'] is "High") and args.sH) or ((vuln[i]['vuln_rating'] is "Medium") and args.sM) or ((vuln[i]['vuln_rating'] is "Low") and args.sL) or ((vuln[i]['vuln_rating'] is "Informational") and args.sI)):
-                print "\t[i]"+ vuln[i]['vuln_title'], "(" + vuln[i]['vuln_rating'] + ")"
-                file.add_heading(vuln[i]['vuln_title'] + " (" + vuln[i]['vuln_rating'] + ")", 2)
-                if args.all_verb:
-                    file.add_paragraph(vuln[i]['vuln_desc'], style='BodyText')
-                    file.add_paragraph(vuln[i]['vuln_sol'], style='BodyText')
-    else:
-        pass
-    return file
-
 def banner():
     """Guinevere's banner"""
     #Art retrieved from http://www.geocities.com/spunk1111/women.htm#pop
@@ -443,6 +348,8 @@ def generate_hosts_table(file, ass):
     """Build a list of assessment interesting hosts; hosts with atleast one TCP or UDP port open."""
 
     hosts = {}
+    file.add_page_break()
+    print "[-]Generating Interesting Hosts Table"
     #Build dictionary of host IDs and IPs from gauntlet's 'hosts' table
     engagement = db_query("""SELECT value FROM gauntlet_"""+ ass+""".engagement_details WHERE engagement_details.key = 'Engagement Task 1'""", ass)
     if engagement:
@@ -713,32 +620,6 @@ def retest():
 
     save_report(retest_report, retest_assessment)
 
-def generate_assessment_report():
-    """The main function for automatically generating an assessment report"""
-
-    os.system('clear')
-    banner()
-    print "Retrieving available assessments..."
-    ass = get_assessment("the assessmnt to create a report for")
-    banner()
-    crosstable = get_crosstable(ass)
-    vID = assessment_vulns(ass, crosstable)
-    os.system('clear')
-    banner()
-    print "[-]Building list of found vulnerabilities for " + ass + " Crosstable " + crosstable + "..."
-    vuln = get_vulns(vID, ass, crosstable)
-    print "[-]Generating report for the following vulnerabilities:"
-    rID = assessment_report(vuln)
-    assessment_db = get_report(rID, vuln)
-    the_Report = docx.Document()
-    the_Report = generate_vuln_list(the_Report, ass, assessment_db)
-    if ((len(assessment_db) is 0) and args.all_vulns is False):
-        print "[!]Nothing to report on, quitting..."
-    else:
-        the_Report = generate_report(assessment_db, vuln, the_Report)
-    the_Report = generate_hosts_table(the_Report, ass)
-    save_report(the_Report, ass)
-
 def main_menu():
     """Display the main menu"""
 
@@ -746,6 +627,7 @@ def main_menu():
     valid_options = {1 : generate_assessment_report,
                      2 : sql_dump,
                      3 : retest,
+                     4 : testing,
     }
     os.system('clear')
     banner()
@@ -817,25 +699,80 @@ def get_path():
     return output_path
 
 def write_single_vul(rpt, report):
-    """Write the vulnerability paragraph"""
+    """Write the single vulnerability paragraph"""
 
     report.add_heading(rpt['report_title'] + " (" + rpt['report_rating']+")")
 
     for i in rpt['vulns']:
-        hosts = ip_sort(list(set(rpt['vulns'][i]['vuln_hosts']))) #Create a unique & sorted list of hosts (avoids duplicate hosts)
-        if len(hosts) > 5: #If more than 5 hosts, draw a table
-            pass
-        else:
-            p = rpt['report_identification'].replace("[n]", int_to_string(len(hosts)))
+        hosts = []
+        for j in set(rpt['vulns'][i]['vuln_hosts']):  # Build Single Dimensional List
+            hosts.append(j[0])
+        hosts = ip_sort(hosts)  # Create a unique & sorted list of hosts (avoids duplicate hosts)
+        if len(hosts) == 1:         # If there is just one host
+            p = rpt['report_identification'].replace("[n]", int_to_string(len(hosts))+ ' ('+hosts[0]+')')
+        elif len(hosts) == 2:       # If there are two hosts
+            p = rpt['report_identification'].replace("[n]", int_to_string(len(hosts))+ ' ('+hosts[0]+' and '+hosts[1]+')')
+        elif len(hosts) >= 2 and len(hosts) <=5:  # If there are more than two but lest than five hosts
+            host_list = ""
+            for h in hosts:
+                if h is hosts[len(hosts)-1]:  # Check to see if this is the last item in the list
+                    host_list += "and " + h + ") "
+                else:
+                    host_list += h + ", "
+            p = rpt['report_identification'].replace("[n]", int_to_string(len(hosts)) + ' ('+host_list)
+        elif len(hosts) >= 6:  # If there are six or more hosts
+            p = rpt['report_identification'].replace("[n]", int_to_string(len(hosts)) + ', see TABLE X,')
 
+        if p.endswith(" ") or rpt['report_explanation'].startswith(" "):
             p += rpt['report_explanation']
+        else:
+            p += (" " + rpt['report_explanation'])
+        if p.endswith(" ") or rpt['report_impact'].startswith(" "):
             p += rpt['report_impact']
-            p += rpt['']
-            report.add_paragraph(p, style='Normal')
-            report.add_paragraph(rpt['report_recommendation'], style='Normal')
+        else:
+            p += (" " + rpt['report_impact'])
+        report.add_paragraph(p, style='Normal')
+        report.add_paragraph(rpt['report_recommendation'], style='Normal')
+
+        if len(hosts) >= 6:     # Draw the table
+            c = 4  # number of desired columns
+            r = int(math.ceil((len(hosts) / float(4))))  # Determine number of rows for table using a max of 4 columns
+            hosts_table = report.add_table(rows=r, cols=c)
+            hosts_table.style = 'MediumGrid1-Accent1'
+            z = 0   # number of hosts
+            x = 0   # row indices
+            y = 0   # column indices
+            while z < len(hosts):
+                if (y / float(c)) == 1:  # Determine if we need to start putting data on a new row
+                    y = 0   # reset column indices since max number of columns reached
+                    x += 1
+                hosts_table.cell(x, y).text = hosts[z]
+                z += 1
+                y += 1  # Add one to up the column data is put in
+            if len(hosts)/float(c) != 1.000:  # Add "---" for empty spots in table
+                d = c * (x+1)
+                while d > len(hosts):
+                    hosts_table.cell(x, y).text = "---"
+                    d -= 1
+                    y += 1
+
     return report
 
-def testing():
+def write_all_vuln(vuln, the_Report):
+
+    print "[-]Writing list of all vulnerabilities to the report: "
+    the_Report.add_page_break()
+    the_Report.add_heading("List of Assessment Vulnerabilities", 1)
+    for i in vuln:
+        if vuln[i]['vuln_report_id'] is None and (((vuln[i]['vuln_rating'] is "Critical") and args.sC) or ((vuln[i]['vuln_rating'] is "High") and args.sH) or ((vuln[i]['vuln_rating'] is "Medium") and args.sM) or ((vuln[i]['vuln_rating'] is "Low") and args.sL) or ((vuln[i]['vuln_rating'] is "Informational") and args.sI)):
+            print "\t[i]"+ vuln[i]['vuln_title'], "(" + vuln[i]['vuln_rating'] + ")"
+            the_Report.add_heading(vuln[i]['vuln_title'] + " (" + vuln[i]['vuln_rating'] + ")", 2)
+            if args.all_verb:
+                the_Report.add_paragraph(vuln[i]['vuln_desc'], style='BodyText')
+                the_Report.add_paragraph(vuln[i]['vuln_sol'], style='BodyText')
+    return the_Report
+
+def generate_assessment_report():
     """The main function for automatically generating an assessment report"""
 
     os.system('clear')
@@ -853,17 +790,58 @@ def testing():
     rID = assessment_report(vuln)
     assessment_db = get_report(rID, vuln)
     the_Report = docx.Document()
+    the_Report.add_heading(assessment, 1)
     the_Report = generate_vuln_list(the_Report, assessment, assessment_db)
     if ((len(assessment_db) is 0) and args.all_vulns is False):
-        print "[!]Nothing to report on, quitting..."
-    else:
-        for i in assessment_db:
-            if len(assessment_db[i]['vulns']) > 1:  #Grouped Vulnerabilty Write-up
-                print 'Multi finding: ', assessment_db[i]['report_title']
-            else:                                   #Single Vulnerability Write-up
+        exit("[!]Nothing to report on, quitting...")
+
+    for i in assessment_db: # Write the report in severity order
+        if assessment_db[i]['report_rating'] == 'Critical' and args.sC:
+            if len(assessment_db[i]['vulns']) > 1:                          # Grouped Vulnerabilty Write-up
+                print '\t[i]Multi finding: ', assessment_db[i]['report_title']
+            elif assessment_db[i]['report_rating'] is not None:   # Single Vulnerability Write-up
+                print "\t[i]" + assessment_db[i]['report_title'] + "(" + assessment_db[i]['report_rating'] + ")"
                 the_Report = write_single_vul(assessment_db[i], the_Report)
+
+    for i in assessment_db:
+        if assessment_db[i]['report_rating'] == 'High' and args.sH:
+            if len(assessment_db[i]['vulns']) > 1:
+                print '\t[i]Multi finding: ', assessment_db[i]['report_title']
+            elif assessment_db[i]['report_rating'] is not None:
+                print "\t[i]" + assessment_db[i]['report_title'] + "(" + assessment_db[i]['report_rating'] + ")"
+                the_Report = write_single_vul(assessment_db[i], the_Report)
+
+    for i in assessment_db:
+        if assessment_db[i]['report_rating'] == 'Medium' and args.sM:
+            if len(assessment_db[i]['vulns']) > 1:
+                print '\t[i]Multi finding: ', assessment_db[i]['report_title']
+            elif assessment_db[i]['report_rating'] is not None:
+                print "\t[i]" + assessment_db[i]['report_title'] + "(" + assessment_db[i]['report_rating'] + ")"
+                the_Report = write_single_vul(assessment_db[i], the_Report)
+
+    for i in assessment_db:
+        if assessment_db[i]['report_rating'] == 'Low' and args.sL:
+            if len(assessment_db[i]['vulns']) > 1:
+                print '\t[i]Multi finding: ', assessment_db[i]['report_title']
+            elif assessment_db[i]['report_rating'] is not None:
+                print "\t[i]" + assessment_db[i]['report_title'] + "(" + assessment_db[i]['report_rating'] + ")"
+                the_Report = write_single_vul(assessment_db[i], the_Report)
+
+    for i in assessment_db:
+        if assessment_db[i]['report_rating'] == 'Informational' and args.sI:
+            if len(assessment_db[i]['vulns']) > 1:
+                print '\t[i]Multi finding: ', assessment_db[i]['report_title']
+            elif assessment_db[i]['report_rating'] is not None:
+                print "\t[i]" + assessment_db[i]['report_title'] + "(" + assessment_db[i]['report_rating'] + ")"
+                the_Report = write_single_vul(assessment_db[i], the_Report)
+
+    if args.all_vulns:
+        the_Report = write_all_vuln(vuln, the_Report)
     the_Report = generate_hosts_table(the_Report, assessment)
     save_report(the_Report, assessment)
+
+def testing():
+    print "Nothing to test right now"
 
 if __name__ == '__main__':
     try:
