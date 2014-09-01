@@ -139,12 +139,15 @@ def assessment_vulns (assessment, crosstable):
 
     #Import data from gauntlet db for the selected crosstable
     hosts = db_query("select * from cross_data_nva WHERE table_id = '" + crosstable +"'", assessment)
-
+    plugins = ""
     for i in hosts:
-        if (i[2].startswith('Nessus') or i[2].startswith('Netsparker') or i[2].startswith('Acunetix') or i[2].startswith('BurpSuite')):
-            print "\t[!]", i[2], "plugin needs to be added to your Gauntlet database"
+        if ((i[2].startswith('Nessus') or i[2].startswith('Netsparker') or i[2].startswith('Acunetix') or i[2].startswith('BurpSuite')) and i[2] not in plugins):
+            plugins += "\n\t[!]" + i[2] + " plugin needs to be added to your Gauntlet database"
         else:
             vulns.append(i[2])   #Vuereto Vuln ID is in spot 2 of the tuple returned by i
+    if plugins != "":
+        print plugins
+        raw_input("Press Enter to Continue")
     return vulns
 
 def assessment_report(vulns):
@@ -161,7 +164,6 @@ def assessment_report(vulns):
 def get_vulns(vuln_IDs, assessment, crosstable):
     """Build dictionary containing the assessment vulnerabilities and their associated information"""
     vulns = {}
-
     db = MySQLdb.connect(host=args.db_host, user=args.db_user, passwd=args.db_pass, port=args.db_port, db='gauntletdata')
     for i in vuln_IDs:      #Need to just read the database into python once instead of over and over per id
         #need to remove "Nessus 1111" entries
@@ -624,10 +626,10 @@ def main_menu():
     """Display the main menu"""
 
     i = None
-    valid_options = {1 : generate_assessment_report,
-                     2 : sql_dump,
-                     3 : retest,
-                     4 : testing,
+    valid_options = {1: generate_assessment_report,
+                     2: sql_dump,
+                     3: retest,
+                     4: patch_gauntlet,
     }
     os.system('clear')
     banner()
@@ -636,6 +638,7 @@ def main_menu():
         print "[1]Generate Assessment Report"
         print "[2]Export Assessment"
         print "[3]Generate Retest Report"
+        print "[4]Patch Gauntled Database"
         i = raw_input("\nWhat would you like to do: ")
         if int(i) in valid_options:
             valid_options[int(i)]()
@@ -758,6 +761,39 @@ def write_single_vul(rpt, report):
 
     return report
 
+def write_multi_vul(rpt, report):
+
+    total_hosts = 0
+    for i in rpt['vulns']:
+        total_hosts += len(rpt['vulns'][i]['vuln_hosts'])
+
+    print str(total_hosts), rpt['report_title']
+    report.add_heading(rpt['report_title'] + " (" + rpt['report_rating']+")")
+    p = rpt['report_identification'].replace("[n]", int_to_string(total_hosts))
+
+    if p.endswith(" ") or rpt['report_explanation'].startswith(" "):
+        p += rpt['report_explanation']
+    else:
+        p += (" " + rpt['report_explanation'])
+    if p.endswith(" ") or rpt['report_impact'].startswith(" "):
+        p += rpt['report_impact']
+    else:
+        p += (" " + rpt['report_impact'])
+
+    report.add_paragraph(p, style='Normal')
+    report.add_paragraph(rpt['report_recommendation'], style='Normal')
+
+    table = report.add_table(rows=1, cols=2)
+    hdr_cells = table.rows[0].cells
+    hdr_cells[0].text = 'Vulnerability'
+    hdr_cells[1].text = 'Affected Host(s)'
+    table.style = 'MediumGrid1-Accent1'
+    for i in rpt['vulns']:
+        row_cells = table.add_row().cells
+        row_cells[0].text = rpt['vulns'][i]['vuln_title']
+        row_cells[1].text = str(len(rpt['vulns'][i]['vuln_hosts']))
+    return report
+
 def write_all_vuln(vuln, the_Report):
 
     print "[-]Writing list of all vulnerabilities to the report: "
@@ -799,6 +835,7 @@ def generate_assessment_report():
         if assessment_db[i]['report_rating'] == 'Critical' and args.sC:
             if len(assessment_db[i]['vulns']) > 1:                          # Grouped Vulnerabilty Write-up
                 print '\t[i]Multi finding: ', assessment_db[i]['report_title']
+                the_report = write_multi_vul(assessment_db[i], the_Report)
             elif assessment_db[i]['report_rating'] is not None:   # Single Vulnerability Write-up
                 print "\t[i]" + assessment_db[i]['report_title'] + "(" + assessment_db[i]['report_rating'] + ")"
                 the_Report = write_single_vul(assessment_db[i], the_Report)
@@ -807,6 +844,7 @@ def generate_assessment_report():
         if assessment_db[i]['report_rating'] == 'High' and args.sH:
             if len(assessment_db[i]['vulns']) > 1:
                 print '\t[i]Multi finding: ', assessment_db[i]['report_title']
+                the_report = write_multi_vul(assessment_db[i], the_Report)
             elif assessment_db[i]['report_rating'] is not None:
                 print "\t[i]" + assessment_db[i]['report_title'] + "(" + assessment_db[i]['report_rating'] + ")"
                 the_Report = write_single_vul(assessment_db[i], the_Report)
@@ -815,6 +853,7 @@ def generate_assessment_report():
         if assessment_db[i]['report_rating'] == 'Medium' and args.sM:
             if len(assessment_db[i]['vulns']) > 1:
                 print '\t[i]Multi finding: ', assessment_db[i]['report_title']
+                the_report = write_multi_vul(assessment_db[i], the_Report)
             elif assessment_db[i]['report_rating'] is not None:
                 print "\t[i]" + assessment_db[i]['report_title'] + "(" + assessment_db[i]['report_rating'] + ")"
                 the_Report = write_single_vul(assessment_db[i], the_Report)
@@ -823,6 +862,7 @@ def generate_assessment_report():
         if assessment_db[i]['report_rating'] == 'Low' and args.sL:
             if len(assessment_db[i]['vulns']) > 1:
                 print '\t[i]Multi finding: ', assessment_db[i]['report_title']
+                the_report = write_multi_vul(assessment_db[i], the_Report)
             elif assessment_db[i]['report_rating'] is not None:
                 print "\t[i]" + assessment_db[i]['report_title'] + "(" + assessment_db[i]['report_rating'] + ")"
                 the_Report = write_single_vul(assessment_db[i], the_Report)
@@ -831,6 +871,7 @@ def generate_assessment_report():
         if assessment_db[i]['report_rating'] == 'Informational' and args.sI:
             if len(assessment_db[i]['vulns']) > 1:
                 print '\t[i]Multi finding: ', assessment_db[i]['report_title']
+                the_report = write_multi_vul(assessment_db[i], the_Report)
             elif assessment_db[i]['report_rating'] is not None:
                 print "\t[i]" + assessment_db[i]['report_title'] + "(" + assessment_db[i]['report_rating'] + ")"
                 the_Report = write_single_vul(assessment_db[i], the_Report)
@@ -840,8 +881,42 @@ def generate_assessment_report():
     the_Report = generate_hosts_table(the_Report, assessment)
     save_report(the_Report, assessment)
 
-def testing():
+def patch_gauntlet():
     print "Nothing to test right now"
+    db = MySQLdb.connect(host=args.db_host, user=args.db_user, passwd=args.db_pass, port=args.db_port, db='gauntletdata')
+
+    create_table = """
+        CREATE TABLE report (
+            report_id integer NOT NULL AUTO_INCREMENT,
+            title character varying(255) NOT NULL DEFAULT '',
+            identification blob,
+            explanation blob,
+            impact blob,
+            recommendation blob,
+            status ENUM('NEW','MODIFIED','ACCEPTED','MARKED','DELETED') NOT NULL,
+            owner character varying(255) NOT NULL DEFAULT '',
+            PRIMARY KEY (report_id)
+        );"""
+    mod_report = """ALTER TABLE report AUTO_INCREMENT = 50000;"""
+    mod_vuln_1 = """ALTER TABLE vulns ADD report_id int;"""
+    mod_vuln_2 = """ALTER TABLE vulns ADD FOREIGN KEY (report_id) REFERENCES report(report_id);"""
+
+    os.system('clear')
+    banner()
+    print """[!]Please make sure you have previously selected "(Re-)Initialize Server" in Gauntlet."""
+    raw_input("Press Enter to Continue")
+    try:
+        gauntlet = db.cursor()
+        gauntlet.execute(create_table)
+        gauntlet.execute(mod_report)
+        gauntlet.execute(mod_vuln_1)
+        gauntlet.execute(mod_vuln_2)
+        gauntlet.close()
+    except:
+        print "\n[!]Please report this error to " + __maintainer__ + " by email at: " + __email__
+        raise
+
+    print "[-]You can now upload a new master dataset to Gauntlet"
 
 if __name__ == '__main__':
     try:
