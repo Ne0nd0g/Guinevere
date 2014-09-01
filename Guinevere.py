@@ -767,7 +767,6 @@ def write_multi_vul(rpt, report):
     for i in rpt['vulns']:
         total_hosts += len(rpt['vulns'][i]['vuln_hosts'])
 
-    print str(total_hosts), rpt['report_title']
     report.add_heading(rpt['report_title'] + " (" + rpt['report_rating']+")")
     p = rpt['report_identification'].replace("[n]", int_to_string(total_hosts))
 
