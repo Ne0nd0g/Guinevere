@@ -136,18 +136,16 @@ def assessment_vulns (assessment, crosstable):
     """Builds a list of the assessment vulnerabilities"""
 
     vulns = []
-
+    plugins = ""
     #Import data from gauntlet db for the selected crosstable
     hosts = db_query("select * from cross_data_nva WHERE table_id = '" + crosstable +"'", assessment)
-    plugins = ""
     for i in hosts:
         if ((i[2].startswith('Nessus') or i[2].startswith('Netsparker') or i[2].startswith('Acunetix') or i[2].startswith('BurpSuite')) and i[2] not in plugins):
-            plugins += "\n\t[!]" + i[2] + " plugin needs to be added to your Gauntlet database"
+            plugins += i[2]
         else:
             vulns.append(i[2])   #Vuereto Vuln ID is in spot 2 of the tuple returned by i
     if plugins != "":
-        print plugins
-        raw_input("Press Enter to Continue")
+        pass
     return vulns
 
 def assessment_report(vulns):
@@ -164,11 +162,15 @@ def assessment_report(vulns):
 def get_vulns(vuln_IDs, assessment, crosstable):
     """Build dictionary containing the assessment vulnerabilities and their associated information"""
     vulns = {}
+    plugins = ""
     db = MySQLdb.connect(host=args.db_host, user=args.db_user, passwd=args.db_pass, port=args.db_port, db='gauntletdata')
     for i in vuln_IDs:      #Need to just read the database into python once instead of over and over per id
         #need to remove "Nessus 1111" entries
         if (i.startswith('Nessus') or i.startswith('Netsparker') or i.startswith('Acunetix') or i.startswith('BurpSuite')):
-            print "[!]", i, "plugin needs to be added to your Gauntlet database"
+            if i not in plugins and i is "":
+                plugins += "\t[!]" + i + " plugin needs to be added to your Gauntlet database"
+            elif i not in plugins:
+                plugins += "\n\t[!]" + i + " plugin needs to be added to your Gauntlet database"
         else:
             gauntlet=db.cursor()
             #gauntlet.execute("""select title, description, solution, report_id from vulns WHERE vureto_id=%s""",(i,)) #Switch to line below for use with Gauntlet instead of Vureto db
@@ -213,6 +215,8 @@ def get_vulns(vuln_IDs, assessment, crosstable):
                 vulns[k].update({'vuln_rating': 'Informational'})
             else:
                 vulns[k].update({'vuln_rating': None})
+    if plugins != "":
+        print plugins
     return vulns
 
 def get_report(report_IDs, vuln):
@@ -338,11 +342,17 @@ def ip_sort(hosts):
     """Put the provided IP addresses into order"""
 
     ips = []
+    hostnames = []
     for ip in hosts:
-        ips.append(netaddr.IPAddress(ip))
+        if ip[0].isalpha():         # Checking for when a hostname is used instead of an IP
+            hostnames.append(ip)
+        elif unicode(ip[0]).isnumeric():     # isnumeric only works with Unicode; checking for IP
+            ips.append(netaddr.IPAddress(ip))
     ips = sorted(ips)
     sorted_hosts = []
-    for i in ips:
+    for i in ips:                   # Add IPs
+        sorted_hosts.append(str(i))
+    for i in hostnames:             # Add Hostnames
         sorted_hosts.append(str(i))
     return sorted_hosts
 
