@@ -702,14 +702,14 @@ def get_path():
     while output_path is None:
         print "[-]Please enter the directory where you would like the file saved?"
         output_path = raw_input()
-        if os.path.isdir(output_path):
+        if os.path.isdir(os.path.expanduser(output_path)):
             pass
         else:
             os.system('clear')
             banner()
             print "[!]" + str(output_path) + " is not valid, please try again: "
             output_path = None
-    return output_path
+    return os.path.expanduser(output_path)
 
 def write_single_vul(rpt, report):
     """Write the single vulnerability paragraph"""
