@@ -7,6 +7,13 @@ import MySQLdb, os, docx, argparse, math, netaddr
 
 #Requires MySQL driver, python-mysqldb for Linux. Seems to be installed in Kali
 #Requires python-docx library, apt-get update; apt-get install -y python-pip;pip install python-docx
+### OSX Install Notes:
+# sudo su -
+# export CFLAGS=-Qunused-arguments
+# export CPPFLAGS=-Qunused-arguments
+# pip install mysql-python
+# pip install python-docx
+# pip install netaddr
 
 #################################################
 #           Gauntlet Variables                  #
