@@ -741,7 +741,7 @@ def write_single_vul(rpt, report):
                     host_list += h + ", "
             p = rpt['report_identification'].replace("[n]", int_to_string(len(hosts)) + ' ('+host_list)
         elif len(hosts) >= 6:  # If there are six or more hosts
-            p = rpt['report_identification'].replace("[n]", int_to_string(len(hosts)) + ', see TABLE X,')
+            p = rpt['report_identification'].replace("[n]", int_to_string(len(hosts)) + '(refer to TABLE X)')
 
         if p.endswith(" ") or rpt['report_explanation'].startswith(" "):
             p += rpt['report_explanation']
