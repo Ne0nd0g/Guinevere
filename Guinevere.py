@@ -20,7 +20,7 @@ import MySQLdb, os, docx, argparse, math, netaddr
 #################################################
 __author__ = "Russel Van Tuyl"
 __license__ = "GPL"
-__version__ = "0.8"
+__version__ = "1.0"
 __maintainer__ = "Russel Van Tuyl"
 __email__ = "Russel.VanTuyl@gmail.com"
 __status__ = "Development"
@@ -31,6 +31,12 @@ g_p = 3306                 # Database Port
 g_user = "gauntlet"        # Database Username
 g_pass = "password"        # Database Password
 #################################################
+#                   COLORS                      #
+#################################################
+note = "\033[0;0;33m-\033[0m"
+warn = "\033[0;0;31m!\033[0m"
+info = "\033[0;0;36mi\033[0m"
+question = "\033[0;0;37m?\033[0m"
 
 #Parse command line arguments
 parser = argparse.ArgumentParser()
@@ -50,7 +56,7 @@ parser.add_argument('-sI', action='store_true', default=False, help="Include Inf
 #parser.add_argument('-O', '--output', type=str, required=True, help="Output directory for .docx file")
 args = parser.parse_args()
 
-def get_assessment (sel):
+def get_assessment(sel):
     """Connects to the assessment database and prompts user to select an engagement"""
 
     db = MySQLdb.connect(host=args.db_host, user=args.db_user, passwd=args.db_pass, port=args.db_port)
@@ -77,7 +83,7 @@ def get_assessment (sel):
         else:
             print "[99]More..."
             print "[Q]Quit"
-            x = raw_input("\nPlease select "+sel+": ")
+            x = raw_input("\n["+question+"]Please select "+sel+": ")
             try:
                 if ((x == "99") or (x == "")):
                     if s == len(dbs):
@@ -96,13 +102,13 @@ def get_assessment (sel):
             except:
                     os.system('clear')
                     banner()
-                    print "[!]ERROR: " + x + " is not a valid option. Try again"
+                    print "["+warn+"]ERROR: " + x + " is not a valid option. Try again"
                     s = 0
                     i = p
     os.system('clear')
     return dbs[int(x)]
 
-def get_crosstable (assessment):
+def get_crosstable(assessment):
     """Select the which assessment crosstable to use"""
 
     crs = ""
@@ -132,14 +138,14 @@ def get_crosstable (assessment):
             except:
                 os.system('clear')
                 banner()
-                print "[!]Error: please try again"
+                print "["+warn+"]Error: please try again"
         else:
             crs = cross[0]
     os.system('clear')
     banner()
     return crs[0]
 
-def assessment_vulns (assessment, crosstable):
+def assessment_vulns(assessment, crosstable):
     """Builds a list of the assessment vulnerabilities"""
 
     vulns = []
@@ -170,18 +176,18 @@ def get_vulns(vuln_IDs, assessment, crosstable):
     """Build dictionary containing the assessment vulnerabilities and their associated information"""
     vulns = {}
     plugins = ""
-    db = MySQLdb.connect(host=args.db_host, user=args.db_user, passwd=args.db_pass, port=args.db_port, db='gauntletdata')
+    db = MySQLdb.connect(host=args.db_host, user=args.db_user, passwd=args.db_pass, port=args.db_port, db='GauntletData')
     for i in vuln_IDs:      #Need to just read the database into python once instead of over and over per id
         #need to remove "Nessus 1111" entries
         if (i.startswith('Nessus') or i.startswith('Netsparker') or i.startswith('Acunetix') or i.startswith('BurpSuite')):
             if i not in plugins and i is "":
-                plugins += "\t[!]" + i + " plugin needs to be added to your Gauntlet database"
+                plugins += "\t["+warn+"]" + i + " plugin needs to be added to your Gauntlet database"
             elif i not in plugins:
-                plugins += "\n\t[!]" + i + " plugin needs to be added to your Gauntlet database"
+                plugins += "\n\t["+warn+"]" + i + " plugin needs to be added to your Gauntlet database"
         else:
             gauntlet=db.cursor()
             #gauntlet.execute("""select title, description, solution, report_id from vulns WHERE vureto_id=%s""",(i,)) #Switch to line below for use with Gauntlet instead of Vureto db
-            gauntlet.execute("""select title, description, solution, report_id from vulns WHERE gnaat_id=%s""",(i,))
+            gauntlet.execute("""select title, description, solution, report_id from vulns WHERE gnaat_id=%s""", (i,))
             temp = gauntlet.fetchone()
             gauntlet.close()
             if temp[3] is not None:
@@ -198,30 +204,48 @@ def get_vulns(vuln_IDs, assessment, crosstable):
             gauntlet=db2.cursor()
             gauntlet.execute("""SELECT host FROM cross_data_nva WHERE cross_data_nva.table_id =%s AND vuln_id=%s AND (s1='Y' or s2='Y' or s3='Y' or s4='Y' or s5='Y')""",(crosstable,j))
             temp2 = gauntlet.fetchall()
+            gauntlet.close()
             #print vuln[j]['vuln_title'], temp2 #DEBUG
             vulns[j].update({'vuln_hosts': temp2})
-        
+
     #Determine the rank of the vulnerability
-    db3 = MySQLdb.connect(host=args.db_host, user=args.db_user, passwd=args.db_pass, port=args.db_port, db='gauntlet_'+ assessment)
     for k in vuln_IDs:
         if (k.startswith('Nessus') or k.startswith('Netsparker') or k.startswith('Acunetix') or k.startswith('BurpSuite')):
             pass
         else:
-            gauntlet=db3.cursor()
-            gauntlet.execute("""SELECT s1, s2, s3, s4, s5 FROM cross_data_nva WHERE vuln_id =%s""",(k,))
-            temp3 = gauntlet.fetchone()
-            if temp3[0] is 'Y':
+            temp4 = db_query("""SELECT s1, s2, s3, s4, s5 FROM cross_data_nva WHERE vuln_id =""" + k, assessment)
+            severities = []
+            for v in temp4:
+                if v[0] is 'Y' and ('Critical' not in severities):
+                    severities.append('Critical')
+                elif v[1] is 'Y' and ('High' not in severities):
+                    severities.append('High')
+                elif v[2] is 'Y' and ('Medium' not in severities):
+                    severities.append('Medium')
+                elif v[3] is 'Y' and ('Low' not in severities):
+                    severities.append('Low')
+                elif v[4] is 'Y' and ('Informational' not in severities):
+                    severities.append('Informational')
+                else:
+                    if None in severities:
+                        pass
+                    else:
+                        severities.append(None)
+
+            # Update vuln_rating to the highest discovered severity
+            if 'Critical' in severities:
                 vulns[k].update({'vuln_rating': 'Critical'})
-            elif temp3[1] is 'Y':
+            elif 'High' in severities:
                 vulns[k].update({'vuln_rating': 'High'})
-            elif temp3[2] is 'Y':
+            elif 'Medium' in severities:
                 vulns[k].update({'vuln_rating': 'Medium'})
-            elif temp3[3] is 'Y':
+            elif 'Low' in severities:
                 vulns[k].update({'vuln_rating': 'Low'})
-            elif temp3[4] is 'Y':
+            elif 'Informational' in severities:
                 vulns[k].update({'vuln_rating': 'Informational'})
             else:
                 vulns[k].update({'vuln_rating': None})
+
     if plugins != "":
         print plugins
     return vulns
@@ -230,7 +254,7 @@ def get_report(report_IDs, vuln):
     """Build a dictionary containing all of the reporting information"""
 
     rpt = {}
-    db = MySQLdb.connect(host=args.db_host, user=args.db_user, passwd=args.db_pass, port=args.db_port, db='gauntletdata') #change to gauntletdata after dev/or vureto for dev
+    db = MySQLdb.connect(host=args.db_host, user=args.db_user, passwd=args.db_pass, port=args.db_port, db='GauntletData') #change to GauntletData after dev/or vureto for dev
     
     for i in report_IDs:
         gauntlet=db.cursor()
@@ -272,22 +296,22 @@ def get_report(report_IDs, vuln):
 
 def banner():
     """Guinevere's banner"""
-    #Art retrieved from http://www.geocities.com/spunk1111/women.htm#pop
+    #Art retrieved from http://www.oocities.org/spunk1111/women.htm
 
-    print """              _,,,_"""
-    print """            .'     `'."""
-    print "           /     ____ \\"
-    print "          |    .`_  _\/"
-    print "          /    ) a  a|           ################################################"
-    print "         /    (    > |           #               Guinevere v"+__version__+"                 #"
-    print """        (      ) ._  /           #                                              #"""
-    print "        )    _/-.__.'`\\          #                                              #"
-    print """       (  .-'`-.   \__ )         #   Automated Security Assessment Reporting    #"""
-    print """        `/      `-./  `.         ################################################"""
-    print "         |    \      \  \\"
-    print "         |     \   \  \  \\"
-    print "         |\     `. /  /   \\"
-    print "____________________________________________________________________\n"
+    print """        ,,,_"""
+    print """     .'     `'. ################################################"""
+    print "    /     ____ \\#               Guinevere v"+__version__+"                 #"
+    print "   |    .`_  _\/#                                              #"
+    print "   /    ) a  a| #   Automated Security Assessment Reporting    #"
+    print "  /    (    > | ################################################"
+    print """ (      ) ._  / """
+    print " )    _/-.__.'`\\"
+    print """(  .-'`-.   \__ )"""
+    print """ `/      `-./  `.         """
+    print "  |    \      \  \\"
+    print "  |     \   \  \  \\"
+    print "  |\     `. /  /   \\"
+    print "_________________________________________________________________"
 
 def int_to_string(i):
     """Converts an integer to its spelled out version; Used in reporting narratives"""
@@ -351,10 +375,12 @@ def ip_sort(hosts):
     ips = []
     hostnames = []
     for ip in hosts:
-        if ip[0].isalpha():         # Checking for when a hostname is used instead of an IP
+        if unicode(ip.split('.')[0]).isnumeric():
+            ips.append(netaddr.IPAddress(ip))  # isnumeric only works with Unicode; checking for IP
+        # elseif: ip[0].isalpha():         # Checking for when a hostname is used instead of an IP
+        else:
             hostnames.append(ip)
-        elif unicode(ip[0]).isnumeric():     # isnumeric only works with Unicode; checking for IP
-            ips.append(netaddr.IPAddress(ip))
+
     ips = sorted(ips)
     sorted_hosts = []
     for i in ips:                   # Add IPs
@@ -368,7 +394,7 @@ def generate_hosts_table(file, ass):
 
     hosts = {}
     file.add_page_break()
-    print "[-]Generating Interesting Hosts Table"
+    print "["+note+"]Generating Interesting Hosts Table"
     #Build dictionary of host IDs and IPs from gauntlet's 'hosts' table
     engagement = db_query("""SELECT value FROM gauntlet_"""+ ass+""".engagement_details WHERE engagement_details.key = 'Engagement Task 1'""", ass)
     if engagement:
@@ -392,14 +418,14 @@ def generate_hosts_table(file, ass):
                     pass
             else:
                 pass
-        hosts[i[0]] = {'IP':i[1], 'Name':i[2], 'TCP':tcp, 'UDP':udp}
-    x = 0
+        hosts[i[0]] = {'IP': i[1], 'Name': i[2], 'TCP': tcp, 'UDP': udp}
+    x = 0  # Number of interesting hosts counter
     for host in hosts:
         if (len(hosts[host]['TCP']) > 0) or (len(hosts[host]['UDP']) > 0):
-            x = x + 1
+            x += 1
         else:
             pass
-    print "[i]"+str(x) + " Interesting Hosts"
+    print "\t["+info+"]"+str(x) + " Interesting Hosts"
     file.add_heading(str(x) + ' Interesting Host(s) List')
     table = file.add_table(rows=1, cols=4)
     hdr_cells = table.rows[0].cells
@@ -409,43 +435,92 @@ def generate_hosts_table(file, ass):
     hdr_cells[3].text = 'Open UDP Port(s)'
     table.style = 'MediumGrid1-Accent1'
 
-    for k in hosts:
-        if (len(hosts[k]['TCP']) > 0) or (len(hosts[k]['UDP']) > 0):
-            x = x + 1
-            row_cells = table.add_row().cells
-            row_cells[0].text = hosts[k]['IP']
-            if len(hosts[k]['Name']) > 0:
-                row_cells[1].text = hosts[k]['Name']
-            else:
-                row_cells[1].text = "---"
-            if len(hosts[k]['TCP']) > 0:
-                row_cells[2].text = str(hosts[k]['TCP']).lstrip('[').rstrip(']').replace("'", "")
-            else:
-                row_cells[2].text = "---"
-            if len(hosts[k]['UDP']) > 0:
-                row_cells[3].text = str(hosts[k]['UDP']).lstrip('[').rstrip(']').replace("'", "")
-            else:
-                row_cells[3].text = "---"
-        else:
-            pass
+    # Build a list of sorted IPs
+    sorted_hosts = []
+    for host in hosts:
+        sorted_hosts.append(hosts[host]['IP'])
+    sorted_hosts = ip_sort(sorted_hosts)
+
+    for ip in sorted_hosts:
+        for k in hosts:
+            if hosts[k]['IP'] == ip:
+                if (len(hosts[k]['TCP']) > 0) or (len(hosts[k]['UDP']) > 0):
+                    x += 1
+                    row_cells = table.add_row().cells
+                    row_cells[0].text = hosts[k]['IP']
+                    if len(hosts[k]['Name']) > 0:
+                        row_cells[1].text = hosts[k]['Name']
+                    else:
+                        row_cells[1].text = "---"
+                    if len(hosts[k]['TCP']) > 0:
+                        row_cells[2].text = str(hosts[k]['TCP']).lstrip('[').rstrip(']').replace("'", "")
+                    else:
+                        row_cells[2].text = "---"
+                    if len(hosts[k]['UDP']) > 0:
+                        row_cells[3].text = str(hosts[k]['UDP']).lstrip('[').rstrip(']').replace("'", "")
+                    else:
+                        row_cells[3].text = "---"
+                else:
+                    pass
+
     return file
 
 def generate_vuln_list(report, assessment, rpt):
     """Build the bullet list of vulnerabilities used in the executive summary"""
 
-    engagement = db_query("""SELECT value FROM gauntlet_"""+ assessment+""".engagement_details WHERE engagement_details.key = 'Engagement Task 1'""", assessment)
+    engagement = db_query("""SELECT value FROM gauntlet_""" + assessment + """.engagement_details WHERE engagement_details.key = 'Engagement Task 1'""", assessment)
 
     if engagement:
         report.add_heading(str(engagement[0][0]) + ' NVA/PT')
     else:
         report.add_heading('NVA/PT')
+
+    def writeBullet(s, h):
+        n = s.find('[n]') + 3  # Find '[n]' and add three to account for the length of '[n]'
+        s = s.replace(s[0:n], int_to_string(h))
+        s = s.rstrip('\n')
+        s = s.rstrip('\t')
+        s = s.rstrip()
+        s = s.rstrip('.')
+        s = s[0:1].upper() + s[1:]
+        report.add_paragraph(s, style='ListBullet')
+
     for i in rpt:
-        item = rpt[i]['report_identification']
-        for j in rpt[i]['vulns']:
-            item = item.replace("The assessment team identified [n]", int_to_string(len(rpt[i]['vulns'][j]['vuln_hosts'])))
-            item = item.rstrip('.')
-            item = item[0:1].upper() + item[1:]
-            report.add_paragraph(item, style='ListBullet')
+        if len(rpt[i]['vulns']) > 1: # Check to see if is a multi vuln report item
+            h = 0
+            for j in rpt[i]['vulns']:
+                h += len(rpt[i]['vulns'][j]['vuln_hosts'])
+            if args.sC and rpt[i]['report_rating'] == 'Critical':
+                writeBullet(rpt[i]['report_identification'], h)
+            elif args.sH and rpt[i]['report_rating'] == 'High':
+                writeBullet(rpt[i]['report_identification'], h)
+            elif args.sM and rpt[i]['report_rating'] == 'Medium':
+                writeBullet(rpt[i]['report_identification'], h)
+            elif args.sL and rpt[i]['report_rating'] == 'Low':
+                writeBullet(rpt[i]['report_identification'], h)
+            elif args.sI and rpt[i]['report_rating'] == 'Informational':
+                writeBullet(rpt[i]['report_identification'], h)
+            elif rpt[i]['report_rating'] is None:
+                print "\t[" + note + "]" + rpt[i]['report_title'] + " has no affected hosts"
+            else:
+                pass
+        else:
+            for j in rpt[i]['vulns']:
+                if args.sC and rpt[i]['report_rating'] == 'Critical':
+                    writeBullet(rpt[i]['report_identification'], len(rpt[i]['vulns'][j]['vuln_hosts']))
+                elif args.sH and rpt[i]['report_rating'] == 'High':
+                    writeBullet(rpt[i]['report_identification'], len(rpt[i]['vulns'][j]['vuln_hosts']))
+                elif args.sM and rpt[i]['report_rating'] == 'Medium':
+                    writeBullet(rpt[i]['report_identification'], len(rpt[i]['vulns'][j]['vuln_hosts']))
+                elif args.sL and rpt[i]['report_rating'] == 'Low':
+                    writeBullet(rpt[i]['report_identification'], len(rpt[i]['vulns'][j]['vuln_hosts']))
+                elif args.sI and rpt[i]['report_rating'] == 'Informational':
+                    writeBullet(rpt[i]['report_identification'], len(rpt[i]['vulns'][j]['vuln_hosts']))
+                elif rpt[i]['report_rating'] is None:
+                    print "\t[" + note + "]" + rpt[i]['report_title'] + " has no affected hosts"
+                else:
+                    pass
+
     return report
 
 def db_query(q, assessment):
@@ -467,7 +542,9 @@ def save_report(file, ass):
     out_dir = get_path()
     guinevere_file = os.path.join(out_dir, "Guinevere_"+ass+".docx")
     file.save(guinevere_file)
-    print "[!]Report saved to: " + guinevere_file
+    print "["+warn+"]Report saved to: " + guinevere_file
+    raw_input("["+question+"]Press enter to continue...")
+    main_menu()
 
 def retest():
     """Create a report for a retest of an assessment"""
@@ -480,18 +557,18 @@ def retest():
     original_assessment = get_assessment("the original assessment")
     banner()
     original_crosstable = get_crosstable(original_assessment)
-    print "[-]Gathering original assessment vulnerability IDs..."
+    print "["+note+"]Gathering original assessment vulnerability IDs..."
     original_vID = assessment_vulns(original_assessment, original_crosstable)
-    print "[-]Gathering original assessment vulnerability dataset..."
+    print "["+note+"]Gathering original assessment vulnerability dataset..."
     original_vuln = get_vulns(original_vID, original_assessment, original_crosstable)
 
     #Collect data from the retest
     retest_assessment = get_assessment("the retest assessment")
     banner()
     retest_crosstable = get_crosstable(retest_assessment)
-    print "[-]Gathering retest vulnerability IDs..."
+    print "["+note+"]Gathering retest vulnerability IDs..."
     retest_vID = assessment_vulns(retest_assessment, retest_crosstable)
-    print "[-]Gathering retest vulnerability dataset..."
+    print "["+note+"]Gathering retest vulnerability dataset..."
     retest_vuln = get_vulns(retest_vID, retest_assessment, retest_crosstable)
 
     #Create the report stub
@@ -647,22 +724,24 @@ def main_menu():
                      2: sql_dump,
                      3: retest,
                      4: patch_gauntlet,
+                     5: exit,
     }
     os.system('clear')
     banner()
     while i is None:
-        print "GUINEVERE MAIN MENU\n"
+        print "\t\t\t\033[0;0;37mGUINEVERE MAIN MENU\033[0m\n"
         print "[1]Generate Assessment Report"
         print "[2]Export Assessment"
         print "[3]Generate Retest Report"
         print "[4]Patch Gauntled Database"
+        print "[5]Exit"
         i = raw_input("\nWhat would you like to do: ")
         if int(i) in valid_options:
             valid_options[int(i)]()
         else:
             os.system('clear')
             banner()
-            print "[!]" + str(i) + " is not a valid option, please try again: "
+            print "["+warn+"]" + str(i) + " is not a valid option, please try again: "
             i = None
 
 def sql_dump():
@@ -695,33 +774,35 @@ def sql_dump():
         sql_file = open(os.path.join(output_path, assessment+"_"+date_time+".sql"), "w")
         subprocess.call([mysqldump, "--host="+args.db_host, "-u", args.db_user, "-p"+args.db_pass, "gauntlet_"+assessment], stdout=sql_file)
         #os.system(mysqldump+" --host="+args.db_host+" -u "+args.db_user+" -p"+args.db_pass+" gauntlet_"+assessment+" > "+sql_file)
-        print "[!]SQL file saved to: " + os.path.join(output_path, assessment+"_"+date_time+".sql")
+        print "["+warn+"]SQL file saved to: " + os.path.join(output_path, assessment+"_"+date_time+".sql")
     except OSError:
-        print "[!]mysqldump is likely not in your path, please add it and try again"
+        print "["+warn+"]mysqldump is likely not in your path, please add it and try again"
         raise
     except:
         raise #Just use for debug
+    raw_input("["+question+"]Press enter to continue...")
+    main_menu()
 
 def get_path():
     """Prompt the user to enter a directory path"""
 
     output_path = None
     while output_path is None:
-        print "[-]Please enter the directory where you would like the file saved?"
+        print "["+question+"]Please enter the directory where you would like the file saved?"
         output_path = raw_input()
         if os.path.isdir(os.path.expanduser(output_path)):
             pass
         else:
             os.system('clear')
             banner()
-            print "[!]" + str(output_path) + " is not valid, please try again: "
+            print "["+warn+"]" + str(output_path) + " is not valid, please try again: "
             output_path = None
     return os.path.expanduser(output_path)
 
 def write_single_vul(rpt, report):
     """Write the single vulnerability paragraph"""
 
-    report.add_heading(rpt['report_title'] + " (" + rpt['report_rating']+")")
+    report.add_heading(rpt['report_title'] + " (" + rpt['report_rating']+")", 3)
 
     for i in rpt['vulns']:
         hosts = []
@@ -782,10 +863,22 @@ def write_multi_vul(rpt, report):
 
     total_hosts = 0
     for i in rpt['vulns']:
-        total_hosts += len(rpt['vulns'][i]['vuln_hosts'])
+        if args.sC and rpt['vulns'][i]['vuln_rating'] == 'Critical':
+            total_hosts += len(rpt['vulns'][i]['vuln_hosts'])
+        elif args.sH and rpt['vulns'][i]['vuln_rating'] == 'High':
+            total_hosts += len(rpt['vulns'][i]['vuln_hosts'])
+        elif args.sM and rpt['vulns'][i]['vuln_rating'] == 'Medium':
+            total_hosts += len(rpt['vulns'][i]['vuln_hosts'])
+        elif args.sL and rpt['vulns'][i]['vuln_rating'] == 'Low':
+            total_hosts += len(rpt['vulns'][i]['vuln_hosts'])
+        elif args.sI and rpt['vulns'][i]['vuln_rating'] == 'Informational':
+            total_hosts += len(rpt['vulns'][i]['vuln_hosts'])
 
-    report.add_heading(rpt['report_title'] + " (" + rpt['report_rating']+")")
+    report.add_heading(rpt['report_title'] + " (" + rpt['report_rating']+")", 3)
     p = rpt['report_identification'].replace("[n]", int_to_string(total_hosts))
+    p = p.rstrip('\n')
+    p = p.rstrip('\t')
+    p = p.rstrip()
 
     if p.endswith(" ") or rpt['report_explanation'].startswith(" "):
         p += rpt['report_explanation']
@@ -799,29 +892,83 @@ def write_multi_vul(rpt, report):
     report.add_paragraph(p, style='Normal')
     report.add_paragraph(rpt['report_recommendation'], style='Normal')
 
-    table = report.add_table(rows=1, cols=2)
+    table = report.add_table(rows=1, cols=3)
     hdr_cells = table.rows[0].cells
-    hdr_cells[0].text = 'Vulnerability'
-    hdr_cells[1].text = 'Affected Host(s)'
+    hdr_cells[0].text = 'Severity'
+    hdr_cells[1].text = 'Vulnerability'
+    hdr_cells[2].text = 'Affected Host(s)'
     table.style = 'MediumGrid1-Accent1'
-    for i in rpt['vulns']:
+    def writeRow(r, t, h):
         row_cells = table.add_row().cells
-        row_cells[0].text = rpt['vulns'][i]['vuln_title']
-        row_cells[1].text = str(len(rpt['vulns'][i]['vuln_hosts']))
+        row_cells[0].text = r
+        row_cells[1].text = t
+        row_cells[2].text = h
+
+    for i in rpt['vulns']:
+        if args.sC and rpt['vulns'][i]['vuln_rating'] == 'Critical':
+            writeRow(rpt['vulns'][i]['vuln_rating'], rpt['vulns'][i]['vuln_title'], str(len(rpt['vulns'][i]['vuln_hosts'])))
+    for i in rpt['vulns']:
+        if args.sH and rpt['vulns'][i]['vuln_rating'] == 'High':
+            writeRow(rpt['vulns'][i]['vuln_rating'], rpt['vulns'][i]['vuln_title'], str(len(rpt['vulns'][i]['vuln_hosts'])))
+    for i in rpt['vulns']:
+        if args.sM and rpt['vulns'][i]['vuln_rating'] == 'Medium':
+            writeRow(rpt['vulns'][i]['vuln_rating'], rpt['vulns'][i]['vuln_title'], str(len(rpt['vulns'][i]['vuln_hosts'])))
+    for i in rpt['vulns']:
+        if args.sL and rpt['vulns'][i]['vuln_rating'] == 'Low':
+            writeRow(rpt['vulns'][i]['vuln_rating'], rpt['vulns'][i]['vuln_title'], str(len(rpt['vulns'][i]['vuln_hosts'])))
+    for i in rpt['vulns']:
+        if args.sI and rpt['vulns'][i]['vuln_rating'] == 'Informational':
+            writeRow(rpt['vulns'][i]['vuln_rating'], rpt['vulns'][i]['vuln_title'], str(len(rpt['vulns'][i]['vuln_hosts'])))
+
     return report
 
 def write_all_vuln(vuln, the_Report):
 
-    print "[-]Writing list of all vulnerabilities to the report: "
+    print "["+note+"]Writing list of all vulnerabilities to the report: "
     the_Report.add_page_break()
     the_Report.add_heading("List of Assessment Vulnerabilities", 1)
     for i in vuln:
-        if vuln[i]['vuln_report_id'] is None and (((vuln[i]['vuln_rating'] is "Critical") and args.sC) or ((vuln[i]['vuln_rating'] is "High") and args.sH) or ((vuln[i]['vuln_rating'] is "Medium") and args.sM) or ((vuln[i]['vuln_rating'] is "Low") and args.sL) or ((vuln[i]['vuln_rating'] is "Informational") and args.sI)):
-            print "\t[i]"+ vuln[i]['vuln_title'], "(" + vuln[i]['vuln_rating'] + ")"
-            the_Report.add_heading(vuln[i]['vuln_title'] + " (" + vuln[i]['vuln_rating'] + ")", 2)
+        if args.sC and vuln[i]['vuln_rating'] is 'Critical':
+            print "\t["+info+"]"+ vuln[i]['vuln_title'], "(" + vuln[i]['vuln_rating'] + ")"
+            the_Report.add_heading(vuln[i]['vuln_title'] + " (" + vuln[i]['vuln_rating'] + ")", 3)
             if args.all_verb:
                 the_Report.add_paragraph(vuln[i]['vuln_desc'], style='BodyText')
                 the_Report.add_paragraph(vuln[i]['vuln_sol'], style='BodyText')
+    for i in vuln:
+        if args.sH and vuln[i]['vuln_rating'] is 'High':
+            print "\t["+info+"]"+ vuln[i]['vuln_title'], "(" + vuln[i]['vuln_rating'] + ")"
+            the_Report.add_heading(vuln[i]['vuln_title'] + " (" + vuln[i]['vuln_rating'] + ")", 3)
+            if args.all_verb:
+                the_Report.add_paragraph(vuln[i]['vuln_desc'], style='BodyText')
+                the_Report.add_paragraph(vuln[i]['vuln_sol'], style='BodyText')
+    for i in vuln:
+        if args.sM and vuln[i]['vuln_rating'] is 'Medium':
+            print "\t["+info+"]"+ vuln[i]['vuln_title'], "(" + vuln[i]['vuln_rating'] + ")"
+            the_Report.add_heading(vuln[i]['vuln_title'] + " (" + vuln[i]['vuln_rating'] + ")", 3)
+            if args.all_verb:
+                the_Report.add_paragraph(vuln[i]['vuln_desc'], style='BodyText')
+                the_Report.add_paragraph(vuln[i]['vuln_sol'], style='BodyText')
+    for i in vuln:
+        if args.sL and vuln[i]['vuln_rating'] is 'Low':
+            print "\t["+info+"]"+ vuln[i]['vuln_title'], "(" + vuln[i]['vuln_rating'] + ")"
+            the_Report.add_heading(vuln[i]['vuln_title'] + " (" + vuln[i]['vuln_rating'] + ")", 3)
+            if args.all_verb:
+                the_Report.add_paragraph(vuln[i]['vuln_desc'], style='BodyText')
+                the_Report.add_paragraph(vuln[i]['vuln_sol'], style='BodyText')
+    for i in vuln:
+        if args.sI and vuln[i]['vuln_rating'] is 'Informational':
+            print "\t["+info+"]"+ vuln[i]['vuln_title'], "(" + vuln[i]['vuln_rating'] + ")"
+            the_Report.add_heading(vuln[i]['vuln_title'] + " (" + vuln[i]['vuln_rating'] + ")", 3)
+            if args.all_verb:
+                the_Report.add_paragraph(vuln[i]['vuln_desc'], style='BodyText')
+                the_Report.add_paragraph(vuln[i]['vuln_sol'], style='BodyText')
+        #if vuln[i]['vuln_report_id'] is None and (((vuln[i]['vuln_rating'] is "Critical") and args.sC) or ((vuln[i]['vuln_rating'] is "High") and args.sH) or ((vuln[i]['vuln_rating'] is "Medium") and args.sM) or ((vuln[i]['vuln_rating'] is "Low") and args.sL) or ((vuln[i]['vuln_rating'] is "Informational") and args.sI)):
+            #print "\t["+info+"]"+ vuln[i]['vuln_title'], "(" + vuln[i]['vuln_rating'] + ")"
+            #the_Report.add_heading(vuln[i]['vuln_title'] + " (" + vuln[i]['vuln_rating'] + ")", 3)
+            #if args.all_verb:
+                #the_Report.add_paragraph(vuln[i]['vuln_desc'], style='BodyText')
+                #the_Report.add_paragraph(vuln[i]['vuln_sol'], style='BodyText')
+
     return the_Report
 
 def generate_assessment_report():
@@ -830,66 +977,66 @@ def generate_assessment_report():
     os.system('clear')
     banner()
     print "Retrieving available assessments..."
-    assessment = get_assessment("the assessmnt to create a report for")
+    assessment = get_assessment("the assessment to create a report for")
     banner()
     crosstable = get_crosstable(assessment)
     vID = assessment_vulns(assessment, crosstable)
     os.system('clear')
     banner()
-    print "[-]Building list of found vulnerabilities for " + assessment + " Crosstable " + crosstable + "..."
+    print "["+note+"]Building list of found vulnerabilities for " + assessment + " Crosstable " + crosstable + "..."
     vuln = get_vulns(vID, assessment, crosstable)
-    print "[-]Generating report for the following vulnerabilities:"
+    print "["+note+"]Generating report for the following vulnerabilities:"
     rID = assessment_report(vuln)
     assessment_db = get_report(rID, vuln)
     the_Report = docx.Document()
     the_Report.add_heading(assessment, 1)
     the_Report = generate_vuln_list(the_Report, assessment, assessment_db)
     if ((len(assessment_db) is 0) and args.all_vulns is False):
-        exit("[!]Nothing to report on, quitting...")
+        exit("["+warn+"]Nothing to report on, quitting...")
 
     for i in assessment_db: # Write the report in severity order
         if assessment_db[i]['report_rating'] == 'Critical' and args.sC:
             if len(assessment_db[i]['vulns']) > 1:                          # Grouped Vulnerabilty Write-up
-                print '\t[i]Multi finding: ', assessment_db[i]['report_title']
+                print '\t['+info+']Multi finding: ', assessment_db[i]['report_title']
                 the_report = write_multi_vul(assessment_db[i], the_Report)
             elif assessment_db[i]['report_rating'] is not None:   # Single Vulnerability Write-up
-                print "\t[i]" + assessment_db[i]['report_title'] + "(" + assessment_db[i]['report_rating'] + ")"
+                print "\t["+info+"]" + assessment_db[i]['report_title'] + "(" + assessment_db[i]['report_rating'] + ")"
                 the_Report = write_single_vul(assessment_db[i], the_Report)
 
     for i in assessment_db:
         if assessment_db[i]['report_rating'] == 'High' and args.sH:
             if len(assessment_db[i]['vulns']) > 1:
-                print '\t[i]Multi finding: ', assessment_db[i]['report_title']
+                print '\t['+info+']Multi finding: ', assessment_db[i]['report_title']
                 the_report = write_multi_vul(assessment_db[i], the_Report)
             elif assessment_db[i]['report_rating'] is not None:
-                print "\t[i]" + assessment_db[i]['report_title'] + "(" + assessment_db[i]['report_rating'] + ")"
+                print "\t["+info+"]" + assessment_db[i]['report_title'] + "(" + assessment_db[i]['report_rating'] + ")"
                 the_Report = write_single_vul(assessment_db[i], the_Report)
 
     for i in assessment_db:
         if assessment_db[i]['report_rating'] == 'Medium' and args.sM:
             if len(assessment_db[i]['vulns']) > 1:
-                print '\t[i]Multi finding: ', assessment_db[i]['report_title']
+                print '\t['+info+']Multi finding: ', assessment_db[i]['report_title']
                 the_report = write_multi_vul(assessment_db[i], the_Report)
             elif assessment_db[i]['report_rating'] is not None:
-                print "\t[i]" + assessment_db[i]['report_title'] + "(" + assessment_db[i]['report_rating'] + ")"
+                print "\t["+info+"]" + assessment_db[i]['report_title'] + "(" + assessment_db[i]['report_rating'] + ")"
                 the_Report = write_single_vul(assessment_db[i], the_Report)
 
     for i in assessment_db:
         if assessment_db[i]['report_rating'] == 'Low' and args.sL:
             if len(assessment_db[i]['vulns']) > 1:
-                print '\t[i]Multi finding: ', assessment_db[i]['report_title']
+                print '\t['+info+']Multi finding: ', assessment_db[i]['report_title']
                 the_report = write_multi_vul(assessment_db[i], the_Report)
             elif assessment_db[i]['report_rating'] is not None:
-                print "\t[i]" + assessment_db[i]['report_title'] + "(" + assessment_db[i]['report_rating'] + ")"
+                print "\t["+info+"]" + assessment_db[i]['report_title'] + "(" + assessment_db[i]['report_rating'] + ")"
                 the_Report = write_single_vul(assessment_db[i], the_Report)
 
     for i in assessment_db:
         if assessment_db[i]['report_rating'] == 'Informational' and args.sI:
             if len(assessment_db[i]['vulns']) > 1:
-                print '\t[i]Multi finding: ', assessment_db[i]['report_title']
+                print '\t['+info+']Multi finding: ', assessment_db[i]['report_title']
                 the_report = write_multi_vul(assessment_db[i], the_Report)
             elif assessment_db[i]['report_rating'] is not None:
-                print "\t[i]" + assessment_db[i]['report_title'] + "(" + assessment_db[i]['report_rating'] + ")"
+                print "\t["+info+"]" + assessment_db[i]['report_title'] + "(" + assessment_db[i]['report_rating'] + ")"
                 the_Report = write_single_vul(assessment_db[i], the_Report)
 
     if args.all_vulns:
@@ -899,7 +1046,7 @@ def generate_assessment_report():
 
 def patch_gauntlet():
     print "Nothing to test right now"
-    db = MySQLdb.connect(host=args.db_host, user=args.db_user, passwd=args.db_pass, port=args.db_port, db='gauntletdata')
+    db = MySQLdb.connect(host=args.db_host, user=args.db_user, passwd=args.db_pass, port=args.db_port, db='GauntletData')
 
     create_table = """
         CREATE TABLE report (
@@ -919,8 +1066,8 @@ def patch_gauntlet():
 
     os.system('clear')
     banner()
-    print """[!]Please make sure you have previously selected "(Re-)Initialize Server" in Gauntlet."""
-    raw_input("Press Enter to Continue")
+    print """["""+warn+"""]Please make sure you have previously selected "(Re-)Initialize Server" in Gauntlet."""
+    raw_input("["+question+"]Press enter to continue...")
     try:
         gauntlet = db.cursor()
         gauntlet.execute(create_table)
@@ -929,16 +1076,20 @@ def patch_gauntlet():
         gauntlet.execute(mod_vuln_2)
         gauntlet.close()
     except:
-        print "\n[!]Please report this error to " + __maintainer__ + " by email at: " + __email__
+        print "\n["+warn+"]Please report this error to " + __maintainer__ + " by email at: " + __email__
         raise
+    main_menu()
 
-    print "[-]You can now upload a new master dataset to Gauntlet"
+    print "["+note+"]You can now upload a new master dataset to Gauntlet"
+    main_menu()
 
 if __name__ == '__main__':
     try:
         main_menu()
     except KeyboardInterrupt:
-        print "\n[!]User Interrupt! Quitting...."
+        print "\n["+warn+"]User Interrupt! Quitting...."
+    except SystemExit:
+        pass
     except:
-        print "\n[!]Please report this error to " + __maintainer__ + "by email at: "+ __email__
+        print "\n["+warn+"]Please report this error to " + __maintainer__ + " by email at: "+ __email__
         raise
