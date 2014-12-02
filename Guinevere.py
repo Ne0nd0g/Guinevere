@@ -20,7 +20,7 @@ import MySQLdb, os, docx, argparse, math, netaddr
 #################################################
 __author__ = "Russel Van Tuyl"
 __license__ = "GPL"
-__version__ = "1.0"
+__version__ = "1.0.1"
 __maintainer__ = "Russel Van Tuyl"
 __email__ = "Russel.VanTuyl@gmail.com"
 __status__ = "Development"
@@ -53,6 +53,7 @@ parser.add_argument('-sH', action='store_false', default=True, help="Exclude Hig
 parser.add_argument('-sM', action='store_false', default=True, help="Exclude Medium-Severity Vulnerabilities")
 parser.add_argument('-sL', action='store_true', default=False, help="Include Low-Severity Vulnerabilities")
 parser.add_argument('-sI', action='store_true', default=False, help="Include Informational-Severity Vulnerabilities")
+parser.add_argument('-aD', '--assessment-date', action='store_true', default=False, help='Include the date when selecting an assessment to report on')
 #parser.add_argument('-O', '--output', type=str, required=True, help="Output directory for .docx file")
 args = parser.parse_args()
 
@@ -78,8 +79,13 @@ def get_assessment(sel):
     i = p       #Counter for the number of engagements to display at a time
     while z != True:
         if (s <= i) and (s < len(dbs)):
-            print "[" + str(s) + "]" + dbs[s]
-            s = s+1
+            if args.assessment_date:
+                SDate = db_query('select value  FROM engagement_details WHERE `key`="Start Date"', dbs[s])
+                if SDate is not None:
+                    print "[" + str(s) + "]" + dbs[s] + "\t" + SDate[0][0]
+            else:
+                print "[" + str(s) + "]" + dbs[s]
+            s += 1
         else:
             print "[99]More..."
             print "[Q]Quit"
@@ -300,7 +306,7 @@ def banner():
 
     print """        ,,,_"""
     print """     .'     `'. ################################################"""
-    print "    /     ____ \\#               Guinevere v"+__version__+"                 #"
+    print "    /     ____ \\#               Guinevere v"+__version__+"               #"
     print "   |    .`_  _\/#                                              #"
     print "   /    ) a  a| #   Automated Security Assessment Reporting    #"
     print "  /    (    > | ################################################"
