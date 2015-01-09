@@ -20,7 +20,7 @@ import MySQLdb, os, docx, argparse, math, netaddr
 #################################################
 __author__ = "Russel Van Tuyl"
 __license__ = "GPL"
-__version__ = "1.0.2"
+__version__ = "1.0.3"
 __maintainer__ = "Russel Van Tuyl"
 __email__ = "Russel.VanTuyl@gmail.com"
 __status__ = "Development"
@@ -1226,8 +1226,11 @@ def pentest_checklist():
                 if tool_data:
                     hosts2[host_id]['ports'][row[3]]['vulns'] = {}
                 for tool in tool_data:
-                    title = db_query("SELECT title from vulns where gnaat_id=" + tool[1], 'GauntletData')
-                    if len(title) > 0:
+                    if tool[1] != "":
+                        title = db_query("SELECT title from vulns where gnaat_id=" + tool[1], 'GauntletData')
+                    else:
+                        title = None
+                    if title is not None and len(title) > 0:
                         hosts2[host_id]['ports'][row[3]]['vulns'].update({tool[0]: {'gnaat_id': tool[1],
                                                                                     'tool': tool[2],
                                                                                     'title': title[0][0],
