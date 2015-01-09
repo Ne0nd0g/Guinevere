@@ -16,14 +16,15 @@ import MySQLdb, os, docx, argparse, math, netaddr
 # pip install netaddr
 
 #################################################
-#           Gauntlet Variables                  #
+#           Guinevere Variables                 #
 #################################################
 __author__ = "Russel Van Tuyl"
 __license__ = "GPL"
-__version__ = "1.0.1"
+__version__ = "1.0.2"
 __maintainer__ = "Russel Van Tuyl"
 __email__ = "Russel.VanTuyl@gmail.com"
 __status__ = "Development"
+G_root = os.path.dirname(os.path.realpath(__file__))
 #################################################
 #CHANGE TO MATCH YOUR DATABASE
 g_ip = "127.0.0.1"         # Database IP address
@@ -54,8 +55,10 @@ parser.add_argument('-sM', action='store_false', default=True, help="Exclude Med
 parser.add_argument('-sL', action='store_true', default=False, help="Include Low-Severity Vulnerabilities")
 parser.add_argument('-sI', action='store_true', default=False, help="Include Informational-Severity Vulnerabilities")
 parser.add_argument('-aD', '--assessment-date', action='store_true', default=False, help='Include the date when selecting an assessment to report on')
+parser.add_argument('-T', '--tool-output', action='store_true', default=False, help="Include Tool Output When Printing G-Checklist")
 #parser.add_argument('-O', '--output', type=str, required=True, help="Output directory for .docx file")
 args = parser.parse_args()
+
 
 def get_assessment(sel):
     """Connects to the assessment database and prompts user to select an engagement"""
@@ -114,6 +117,7 @@ def get_assessment(sel):
     os.system('clear')
     return dbs[int(x)]
 
+
 def get_crosstable(assessment):
     """Select the which assessment crosstable to use"""
 
@@ -151,6 +155,7 @@ def get_crosstable(assessment):
     banner()
     return crs[0]
 
+
 def assessment_vulns(assessment, crosstable):
     """Builds a list of the assessment vulnerabilities"""
 
@@ -167,6 +172,7 @@ def assessment_vulns(assessment, crosstable):
         pass
     return vulns
 
+
 def assessment_report(vulns):
     """Builds a unique list of Report IDs for the selected assessment and crosstable"""
 
@@ -177,6 +183,7 @@ def assessment_report(vulns):
         else:
             pass
     return set(temp)
+
 
 def get_vulns(vuln_IDs, assessment, crosstable):
     """Build dictionary containing the assessment vulnerabilities and their associated information"""
@@ -256,6 +263,7 @@ def get_vulns(vuln_IDs, assessment, crosstable):
         print plugins
     return vulns
 
+
 def get_report(report_IDs, vuln):
     """Build a dictionary containing all of the reporting information"""
 
@@ -300,6 +308,7 @@ def get_report(report_IDs, vuln):
             rpt[i]['report_rating'] = None
     return rpt
 
+
 def banner():
     """Guinevere's banner"""
     #Art retrieved from http://www.oocities.org/spunk1111/women.htm
@@ -318,6 +327,7 @@ def banner():
     print "  |     \   \  \  \\"
     print "  |\     `. /  /   \\"
     print "_________________________________________________________________"
+
 
 def int_to_string(i):
     """Converts an integer to its spelled out version; Used in reporting narratives"""
@@ -375,6 +385,7 @@ def int_to_string(i):
     else:
         return "ERROR, was not able to return the number of host(s)"
 
+
 def ip_sort(hosts):
     """Put the provided IP addresses into order"""
 
@@ -394,6 +405,7 @@ def ip_sort(hosts):
     for i in hostnames:             # Add Hostnames
         sorted_hosts.append(str(i))
     return sorted_hosts
+
 
 def generate_hosts_table(file, ass):
     """Build a list of assessment interesting hosts; hosts with atleast one TCP or UDP port open."""
@@ -471,6 +483,7 @@ def generate_hosts_table(file, ass):
 
     return file
 
+
 def generate_vuln_list(report, assessment, rpt):
     """Build the bullet list of vulnerabilities used in the executive summary"""
 
@@ -529,10 +542,16 @@ def generate_vuln_list(report, assessment, rpt):
 
     return report
 
+
 def db_query(q, assessment):
     """General use function used for querying the assessment database"""
 
-    db = MySQLdb.connect(host=args.db_host, user=args.db_user, passwd=args.db_pass, port=args.db_port, db='gauntlet_'+assessment)
+    if assessment == "GauntletData":
+        assessment2 = assessment
+    else:
+        assessment2 = "gauntlet_" + assessment
+
+    db = MySQLdb.connect(host=args.db_host, user=args.db_user, passwd=args.db_pass, port=args.db_port, db=assessment2)
     try:
         gauntlet=db.cursor()
         gauntlet.execute(q)
@@ -543,6 +562,7 @@ def db_query(q, assessment):
         print "There was an error performing the following query: "
         print q
 
+
 def save_report(file, ass):
     """Save the generated assessment report"""
     out_dir = get_path()
@@ -551,6 +571,7 @@ def save_report(file, ass):
     print "["+warn+"]Report saved to: " + guinevere_file
     raw_input("["+question+"]Press enter to continue...")
     main_menu()
+
 
 def retest():
     """Create a report for a retest of an assessment"""
@@ -584,22 +605,32 @@ def retest():
     retest = {} #Dictionary to hold retest data
 
     for i in original_vuln:
-        if original_vuln[i]['vuln_rating'] is not None:
+        if original_vuln[i]['vuln_rating'] is not None and original_vuln[i]['vuln_rating'] is not "Informational":
             retest[i] = {'vuln_id': i, 'vuln_title': original_vuln[i]['vuln_title'], 'vuln_rating': original_vuln[i]['vuln_rating'], 'total_orig': len(set(original_vuln[i]['vuln_hosts']))}
             if i in retest_vuln:
                 o = set(original_vuln[i]['vuln_hosts']) #Original
                 r = set(retest_vuln[i]['vuln_hosts'])   #Retest
                 l = o - r                               #Leftover, fixed hosts
-                nr = r - o                               #New Retest Hosts
-                dr = r - nr                             #Delta Retest; only retest hosts that were in the original
-                retest[i].update({'total_retest': len(set(dr))})
-                if len(l) == 0:
+                b = []  # List of hosts from the original retest that are found in the retest
+
+                for x in o: # For each host in the original assessment, check to see if it is in the retest assessment
+                    if x in r:
+                        b.append(x)
+                if len(b) == 0:
+                    print "\t["+note+"]" + original_vuln[i]['vuln_title'] + " - Remediated"
+                    retest[i].update({'status': 'Remediated'})
+                elif len(b) == len(o):
+                    print "\t["+warn+"]" + original_vuln[i]['vuln_title'] + " - Not Remediated"
                     retest[i].update({'status': 'Not Remediated'})
+                    retest[i].update({'v_hosts': o}) #Hosts Still Vulnerable, contributed by Zach
                 else:
+                    print "\t["+info+"]" + original_vuln[i]['vuln_title'] + \
+                          " - Partially Remediated (Still vulnerable: " + str(len(b)) + ")"
                     retest[i].update({'status': 'Partially Remediated'})
-                    retest[i].update({'v_hosts': dr})#Hosts still vulnerable
+                    retest[i].update({'v_hosts': b})#Hosts still vulnerable
                     retest[i].update({'f_hosts': l}) #Fixed hosts
             else:
+                print "\t["+note+"]" + original_vuln[i]['vuln_title'] + " - Remediated"
                 retest[i].update({'status': 'Remediated'})
 
     #Build Status Table
@@ -652,7 +683,8 @@ def retest():
     hdr_cells[1].text = 'Hosts'
 
     for i in retest:
-        if 'v_hosts' in retest[i]:
+        # "and retest[i]['vuln_rating'] is not 'Informational' and len(retest[i]['v_hosts']) > 0" Contriubted by Zach
+        if 'v_hosts' in retest[i] and retest[i]['vuln_rating'] is not 'Informational' and len(retest[i]['v_hosts']) > 0:
             row_cells = vulnerable_table.add_row().cells
             row_cells[0].text = retest[i]['vuln_title']
             hosts = []
@@ -722,6 +754,7 @@ def retest():
 
     save_report(retest_report, retest_assessment)
 
+
 def main_menu():
     """Display the main menu"""
 
@@ -730,25 +763,31 @@ def main_menu():
                      2: sql_dump,
                      3: retest,
                      4: patch_gauntlet,
-                     5: exit,
+                     5: pentest_checklist,
+                     6: exit,
     }
     os.system('clear')
     banner()
-    while i is None:
-        print "\t\t\t\033[0;0;37mGUINEVERE MAIN MENU\033[0m\n"
-        print "[1]Generate Assessment Report"
-        print "[2]Export Assessment"
-        print "[3]Generate Retest Report"
-        print "[4]Patch Gauntled Database"
-        print "[5]Exit"
-        i = raw_input("\nWhat would you like to do: ")
-        if int(i) in valid_options:
-            valid_options[int(i)]()
-        else:
-            os.system('clear')
-            banner()
-            print "["+warn+"]" + str(i) + " is not a valid option, please try again: "
-            i = None
+    try:
+        while i is None:
+            print "\t\t\t\033[0;0;37mGUINEVERE MAIN MENU\033[0m\n"
+            print "[1]Generate Assessment Report"
+            print "[2]Export Assessment"
+            print "[3]Generate Retest Report"
+            print "[4]Patch Gauntled Database"
+            print "[5]Generate Pentest Checklist *BETA*"
+            print "[6]Exit"
+            i = raw_input("\nWhat would you like to do: ")
+            if int(i) in valid_options:
+                valid_options[int(i)]()
+            else:
+                os.system('clear')
+                banner()
+                print "["+warn+"]" + str(i) + " is not a valid option, please try again: "
+                i = None
+    except ValueError:
+        main_menu()
+
 
 def sql_dump():
     """Use mysqldump to export an assessment to a .sql file"""
@@ -789,6 +828,7 @@ def sql_dump():
     raw_input("["+question+"]Press enter to continue...")
     main_menu()
 
+
 def get_path():
     """Prompt the user to enter a directory path"""
 
@@ -804,6 +844,7 @@ def get_path():
             print "["+warn+"]" + str(output_path) + " is not valid, please try again: "
             output_path = None
     return os.path.expanduser(output_path)
+
 
 def write_single_vul(rpt, report):
     """Write the single vulnerability paragraph"""
@@ -864,6 +905,7 @@ def write_single_vul(rpt, report):
                     y += 1
 
     return report
+
 
 def write_multi_vul(rpt, report):
 
@@ -928,6 +970,7 @@ def write_multi_vul(rpt, report):
 
     return report
 
+
 def write_all_vuln(vuln, the_Report):
 
     print "["+note+"]Writing list of all vulnerabilities to the report: "
@@ -976,6 +1019,7 @@ def write_all_vuln(vuln, the_Report):
                 #the_Report.add_paragraph(vuln[i]['vuln_sol'], style='BodyText')
 
     return the_Report
+
 
 def generate_assessment_report():
     """The main function for automatically generating an assessment report"""
@@ -1050,6 +1094,7 @@ def generate_assessment_report():
     the_Report = generate_hosts_table(the_Report, assessment)
     save_report(the_Report, assessment)
 
+
 def patch_gauntlet():
     print "Nothing to test right now"
     db = MySQLdb.connect(host=args.db_host, user=args.db_user, passwd=args.db_pass, port=args.db_port, db='GauntletData')
@@ -1088,6 +1133,116 @@ def patch_gauntlet():
 
     print "["+note+"]You can now upload a new master dataset to Gauntlet"
     main_menu()
+
+
+def pentest_checklist():
+    """Generate a pentest checklist to be used for an assessment"""
+
+    def write_html():
+        """Generate HTML pentest checklist"""
+
+        message = ''
+
+        for host in hosts2:
+            # Build table Header for each host
+            html_host_table_header = """\n<table>\n\t<tr id='""" + hosts2[host]['ipv4'].replace('.', '_') + \
+                                     """' class="parent">\n\t\t<th id="check-header"><input type="checkbox"></th>""" + \
+                                     """\n\t\t<th id="header" colspan="2">""" + hosts2[host]['ipv4'] + """</th></tr>"""
+            message += html_host_table_header
+
+            # Build Port Rows
+            for port_id in hosts2[host]['ports']:
+                html_host_table_data = """\n\t<tr class="child-"""+hosts2[host]['ipv4'].replace('.', '_') + \
+                                       """">\n\t\t<td id="check-ports"><input type="checkbox"></td>""" + \
+                                       """\n\t\t<td id="ports">""" + hosts2[host]['ports'][port_id]['port'] + \
+                                       "/" + hosts2[host]['ports'][port_id]['type'] + "/" + \
+                                       hosts2[host]['ports'][port_id]['service'] + """</td>\n\t</tr>"""
+                message += html_host_table_data
+
+                # Build Vulnerability Rows
+                if 'vulns' in hosts2[host]['ports'][port_id].keys() and args.tool_output:
+                    for vuln_id in hosts2[host]['ports'][port_id]['vulns']:
+                        tool_name = hosts2[host]['ports'][port_id]['vulns'][vuln_id]['tool']
+                        # Add Row for Single Tool Output
+                        message += """\n\t<tr class="grand-child-""" + hosts2[host]['ipv4'].replace('.', '_') + \
+                                   """" id='""" + tool_name + """'>"""
+                        # Add Tool Title Data
+                        message += """\n\t\t<td id="tool" colspan="2" title='""" + \
+                                   hosts2[host]['ports'][port_id]['vulns'][vuln_id]['tool'] + """'>""" + \
+                                   str(hosts2[host]['ports'][port_id]['vulns'][vuln_id]['title']) + \
+                                   """</td>"""
+                        message += """\n\t<tr class="tool-output">\n\t\t<td id="tool-output" colspan="2"><pre>""" + \
+                                   hosts2[host]['ports'][port_id]['vulns'][vuln_id]['output'] + """</pre></td></tr>"""
+                        # print '\t\tVuln: ', hosts2[host_id]['ports'][port]['vulns'][vuln]['tool'] + " - " + \
+                        #                     hosts2[host_id]['ports'][port]['vulns'][vuln]['gnaat_id']
+            message += ("""\n\t<tr class="child-""" + hosts2[host]['ipv4'].replace('.', '_') +
+                        """" id="notes">\n\t\t<td colspan="2"><input type="text" id="text-notes"></td>\n\t</tr>""") * 3
+            message += "\n</table>"
+
+        out_dir = get_path()
+        checklist = os.path.join(out_dir, "Guinevere_"+assessment+"_checklist.html")
+        html_file = open(checklist, 'w')
+        # Build HTML File
+        css = open(os.path.join(G_root, 'static', 'G-Checklist', 'G-Checklist.css'), 'r').read()
+        html = open(os.path.join(G_root, 'static', 'G-Checklist', 'G-Checklist_Template.html'), 'r').read()
+        html = html.replace('$ASSESSMENT', assessment)
+        html = html.replace('$CSS', css)
+        html = html.replace('$DATA', message)
+        html_file.write(html)
+        html_file.close()
+        print "["+warn+"]Report saved to: " + checklist
+
+    assessment = get_assessment("the assessment to create a pentest checklist for")
+    banner()
+    print "["+note+"]Building Pentest Checklist for " + assessment + "..."
+    # hosts1 holds the record set returned from the SQL query
+    hosts1 = db_query("""SELECT hosts.host_id, ip_address, fqdn, port_id, port, protocol, name """
+                      """FROM hosts INNER JOIN ports ON hosts.host_id=ports.host_id WHERE port IS NOT NULL""",
+                      assessment)
+    host_ids = []   # A list to store retrieved host IDs
+    hosts2 = {}     # A dictionary that holds the data used to print the checklist
+
+    for row in hosts1:
+        if row[0] not in host_ids:
+            host_ids.append(row[0])
+
+    for host_id in host_ids:
+        hosts2[host_id] = {'ports': {}}    # Create a key in the hosts2 dictionary from the host id
+        for row in hosts1:
+            if host_id == row[0]:
+                hosts2[host_id].update({'ipv4': row[1]})
+                if 'fqdn' in hosts2[host_id].keys():
+                    if row[2] not in hosts2[host_id]['fqdn']:
+                        hosts2[host_id]['fqdn'].append(row[2])
+                else:
+                    hosts2[host_id].update({'fqdn': [row[2]]})
+                if row[4] > 0:
+                    hosts2[host_id]['ports'][row[3]] = {}
+                    hosts2[host_id]['ports'][row[3]].update({'port': row[4]})
+                    hosts2[host_id]['ports'][row[3]].update({'type': row[5]})
+                    hosts2[host_id]['ports'][row[3]].update({'service': row[6]})
+                tool_data = db_query("""SELECT vuln_id, gnaat_id, tool, txt FROM vulnerabilities WHERE host_id=""" +
+                                     str(host_id) + """ and port_id=""" + str(row[3]), assessment)
+                if tool_data:
+                    hosts2[host_id]['ports'][row[3]]['vulns'] = {}
+                for tool in tool_data:
+                    title = db_query("SELECT title from vulns where gnaat_id=" + tool[1], 'GauntletData')
+                    if len(title) > 0:
+                        hosts2[host_id]['ports'][row[3]]['vulns'].update({tool[0]: {'gnaat_id': tool[1],
+                                                                                    'tool': tool[2],
+                                                                                    'title': title[0][0],
+                                                                                    'output': tool[3]}})
+                    else:
+                        hosts2[host_id]['ports'][row[3]]['vulns'].update({tool[0]: {'gnaat_id': tool[1],
+                                                                                    'tool': tool[2],
+                                                                                    'title': None,
+                                                                                    'output': tool[3]}})
+
+    write_html()
+    raw_input("["+note+"]Press enter to return to the main menu")
+
+    main_menu()
+
 
 if __name__ == '__main__':
     try:

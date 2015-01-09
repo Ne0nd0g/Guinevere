@@ -1,0 +1,86 @@
+table, th{
+	border:1px solid black;
+	border-collapse:collapse;
+	width:100%;
+	height:20px;
+}
+
+td{
+	border:1px solid black;
+	border-collapse:collapse;
+	text-align:left;
+}
+
+#header{
+	border-left-style:none;
+	text-align:left;
+	font-weight:bold;
+	font-size:125%;
+}
+
+#header, #check-header{
+	background-color:#D49F0E;
+}
+
+input{
+	text-align:left;
+}
+
+#Service{
+	width:10%;
+}
+
+#Info{
+	width:80%;
+}
+
+#ports{
+	text-align:left;
+	font-weight:bold;
+	font-size:70%;
+	border-left-style:none;
+}
+
+#ports, #check-ports{
+	background-color:#C6C8CA;
+}
+
+#script{
+	font-size:70%;
+	text-align:left;
+	background-color:#E0E0E0;
+}
+
+#notes{
+	height:20px;
+	border: 0px solid black;
+	border-collapse:collapse;
+}
+
+#content{
+	font-size:70%
+}
+
+#check-ports, #check-header{
+	text-align:left;
+	width:1px;
+	border-right-style:none;
+}
+
+#text-notes{
+	width:99%;
+	text-align:left;
+	border: 0px solid black;
+}
+
+#Nessus{
+	text-align:left;
+	font-size:90%;
+	background-color:#3399FF;
+}
+
+#tool-output{
+	text-align:left;
+	font-size:90%;
+	background-color:#9EA0A2;
+}

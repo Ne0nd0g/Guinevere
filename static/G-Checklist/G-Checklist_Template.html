@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title>Pentest Checklist: $ASSESSMENT</title>
+</head>
+<style>
+    $CSS
+</style>
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+<script>
+$(function() {
+	$('tr.parent')
+		.css("cursor","pointer")
+		.attr("title","Click to expand/collapse")
+		.click(function(){
+			$(this).siblings('.child-'+this.id).toggle();
+		});
+	$('tr[@class^=child-]').hide().children('td');
+});</script>
+<body>
+<h1>$ASSESSMENT</h1>
+$DATA
+<sup>To save content, "Save As" -> "Webpage Complete" into a new filename</sup>
+</body>
+</html>
