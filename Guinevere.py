@@ -20,7 +20,7 @@ import MySQLdb, os, docx, argparse, math, netaddr
 #################################################
 __author__ = "Russel Van Tuyl"
 __license__ = "GPL"
-__version__ = "1.0.3"
+__version__ = "1.1.0"
 __maintainer__ = "Russel Van Tuyl"
 __email__ = "Russel.VanTuyl@gmail.com"
 __status__ = "Development"
@@ -45,17 +45,25 @@ parser.add_argument('-H', '--db-host', type=str, default=g_ip, help="MySQL Datab
 parser.add_argument('-U', '--db-user', type=str, default=g_user, help="MySQL Database Username. Default set in script")
 parser.add_argument('-P', '--db-pass', type=str, default=g_pass, help="MySQL Database Password. Default set in script")
 parser.add_argument('-p', '--db-port', type=str, default=g_p, help="MySQL Database Port. Default set in script")
-parser.add_argument('-l', '--lines', type=int, default=10, help="Number of lines to display when selecting an engagement. Default is 10")
+parser.add_argument('-l', '--lines', type=int, default=10, help="Number of lines to display when selecting an "
+                                                                "engagement. Default is 10")
 #parser.add_argument('-X', '--db-xml', type=argparse.FileType('r'), help="XML Database file")
-parser.add_argument('-A', '--all-vulns', action='store_true', default=False, help="Include all vulnerability headings when there are no associated report narratives")
-parser.add_argument('-V', '--all-verb', action='store_true', default=False, help="Include all vureto vulnerability verbiage when there are no associated report narratives")
+parser.add_argument('-A', '--all-vulns', action='store_true', default=False, help="Include all vulnerability headings "
+                                                                                  "when there are no associated report "
+                                                                                  "narratives")
+parser.add_argument('-V', '--all-verb', action='store_true', default=False, help="Include all vureto vulnerability "
+                                                                                 "verbiage when there are no "
+                                                                                 "associated report narratives")
 parser.add_argument('-sC', action='store_false', default=True, help="Exclude Critical-Severity Vulnerabilities")
 parser.add_argument('-sH', action='store_false', default=True, help="Exclude High-Severity Vulnerabilities")
 parser.add_argument('-sM', action='store_false', default=True, help="Exclude Medium-Severity Vulnerabilities")
 parser.add_argument('-sL', action='store_true', default=False, help="Include Low-Severity Vulnerabilities")
 parser.add_argument('-sI', action='store_true', default=False, help="Include Informational-Severity Vulnerabilities")
-parser.add_argument('-aD', '--assessment-date', action='store_true', default=False, help='Include the date when selecting an assessment to report on')
-parser.add_argument('-T', '--tool-output', action='store_true', default=False, help="Include Tool Output When Printing G-Checklist")
+parser.add_argument('-aD', '--assessment-date', action='store_true', default=False, help='Include the date when '
+                                                                                         'selecting an assessment '
+                                                                                         'to report on')
+parser.add_argument('-T', '--tool-output', action='store_false', default=True, help="Exclude Tool Output When Printing "
+                                                                                    "G-Checklist")
 #parser.add_argument('-O', '--output', type=str, required=True, help="Output directory for .docx file")
 args = parser.parse_args()
 
@@ -775,7 +783,7 @@ def main_menu():
             print "[2]Export Assessment"
             print "[3]Generate Retest Report"
             print "[4]Patch Gauntled Database"
-            print "[5]Generate Pentest Checklist *BETA*"
+            print "[5]Generate Pentest Checklist"
             print "[6]Exit"
             i = raw_input("\nWhat would you like to do: ")
             if int(i) in valid_options:
@@ -1138,46 +1146,61 @@ def patch_gauntlet():
 def pentest_checklist():
     """Generate a pentest checklist to be used for an assessment"""
 
-    def write_html():
+    def build_html():
         """Generate HTML pentest checklist"""
 
-        message = ''
+        html_part = ''
+
+        host_part = '\n<table>\n\t<tr id="$host-id" class="Host">\n\t\t<th class="Host-Header-Check"><input type=' \
+                    '"checkbox"></th>\n\t\t<th class="Host-Header">$host-name</th>\n\t</tr>'
+        port_part = '\n\t<tr id="$host-id_$port-id" class="Port">\n\t\t<td class="Port-Header-Check"><input ' \
+                    'type="checkbox"></td>\n\t\t<td class="Port-Header">$port-text</td>\n\t</tr>'
+        tool_part = '\n\t<tr id="$host-id_$port-id_$tool-id" class="Tool-$tool-name">\n\t\t<td colspan="2" class=' \
+                    '"Tool-Header"title="$tool-name">$vuln-title</td>\n\t</tr>'
+        tool_output_part = '\n\t<tr id="$host-id_$port-id_$tool-id_Output" class="Tool_Output">\n\t\t<td colspan="2">' \
+                           '<pre>$tool-output</pre></td>\n\t</tr>'
+        note_part = '\n\t<tr class="Notes">\n\t\t<td colspan="2"><input type="text" class="Notes-Text"></td>\n\t</tr>'
 
         for host in hosts2:
             # Build table Header for each host
-            html_host_table_header = """\n<table>\n\t<tr id='""" + hosts2[host]['ipv4'].replace('.', '_') + \
-                                     """' class="parent">\n\t\t<th id="check-header"><input type="checkbox"></th>""" + \
-                                     """\n\t\t<th id="header" colspan="2">""" + hosts2[host]['ipv4'] + """</th></tr>"""
-            message += html_host_table_header
+            html_part += host_part
+            if hosts2[host]['fqdn'][0] is not "":
+                html_part = html_part.replace('$host-name', hosts2[host]['ipv4'] + " - " + hosts2[host]['fqdn'][0])
+            else:
+                html_part = html_part.replace('$host-name', hosts2[host]['ipv4'])
 
             # Build Port Rows
             for port_id in hosts2[host]['ports']:
-                html_host_table_data = """\n\t<tr class="child-"""+hosts2[host]['ipv4'].replace('.', '_') + \
-                                       """">\n\t\t<td id="check-ports"><input type="checkbox"></td>""" + \
-                                       """\n\t\t<td id="ports">""" + hosts2[host]['ports'][port_id]['port'] + \
-                                       "/" + hosts2[host]['ports'][port_id]['type'] + "/" + \
-                                       hosts2[host]['ports'][port_id]['service'] + """</td>\n\t</tr>"""
-                message += html_host_table_data
+                html_part += port_part
 
                 # Build Vulnerability Rows
                 if 'vulns' in hosts2[host]['ports'][port_id].keys() and args.tool_output:
                     for vuln_id in hosts2[host]['ports'][port_id]['vulns']:
+                        html_part += tool_part
+                        html_part += tool_output_part
                         tool_name = hosts2[host]['ports'][port_id]['vulns'][vuln_id]['tool']
-                        # Add Row for Single Tool Output
-                        message += """\n\t<tr class="grand-child-""" + hosts2[host]['ipv4'].replace('.', '_') + \
-                                   """" id='""" + tool_name + """'>"""
-                        # Add Tool Title Data
-                        message += """\n\t\t<td id="tool" colspan="2" title='""" + \
-                                   hosts2[host]['ports'][port_id]['vulns'][vuln_id]['tool'] + """'>""" + \
-                                   str(hosts2[host]['ports'][port_id]['vulns'][vuln_id]['title']) + \
-                                   """</td>"""
-                        message += """\n\t<tr class="tool-output">\n\t\t<td id="tool-output" colspan="2"><pre>""" + \
-                                   hosts2[host]['ports'][port_id]['vulns'][vuln_id]['output'] + """</pre></td></tr>"""
-                        # print '\t\tVuln: ', hosts2[host_id]['ports'][port]['vulns'][vuln]['tool'] + " - " + \
-                        #                     hosts2[host_id]['ports'][port]['vulns'][vuln]['gnaat_id']
-            message += ("""\n\t<tr class="child-""" + hosts2[host]['ipv4'].replace('.', '_') +
-                        """" id="notes">\n\t\t<td colspan="2"><input type="text" id="text-notes"></td>\n\t</tr>""") * 3
-            message += "\n</table>"
+                        html_part = html_part.replace('$tool-id', tool_name + "-" + vuln_id)
+                        html_part = html_part.replace('$tool-name', tool_name)
+                        html_part = html_part.replace('$vuln-title',
+                                                      str(hosts2[host]['ports'][port_id]['vulns'][vuln_id]['title']))
+                        html_part = html_part.replace('$tool-output',
+                                                      (hosts2[host]['ports'][port_id]['vulns'][vuln_id]['output'])
+                                                      .replace('<script>', '&#x3c;&#x73;&#x63;&#x72;&#x69;&#x70;&#x74;'
+                                                                           '&#x3e;')
+                                                      .replace('</scrip>', '&#x3c;&#x2f;&#x73;&#x63;&#x72;&#x69;&#x70;'
+                                                                           '&#x74;&#x3e;'))
+
+                html_part = html_part.replace('$port-id', hosts2[host]['ports'][port_id]['port'] + "-" +
+                                              hosts2[host]['ports'][port_id]['type'])
+                html_part = html_part.replace('$port-text', hosts2[host]['ports'][port_id]['port'] + "/" +
+                                              hosts2[host]['ports'][port_id]['type'] + "/" +
+                                              str(hosts2[host]['ports'][port_id]['service']))
+
+            html_part = html_part.replace('$host-id', hosts2[host]['ipv4'])
+            html_part += (note_part * 3)
+            html_part += '\n</table>'
+
+
 
         out_dir = get_path()
         checklist = os.path.join(out_dir, "Guinevere_"+assessment+"_checklist.html")
@@ -1187,7 +1210,7 @@ def pentest_checklist():
         html = open(os.path.join(G_root, 'static', 'G-Checklist', 'G-Checklist_Template.html'), 'r').read()
         html = html.replace('$ASSESSMENT', assessment)
         html = html.replace('$CSS', css)
-        html = html.replace('$DATA', message)
+        html = html.replace('$DATA', html_part)
         html_file.write(html)
         html_file.close()
         print "["+warn+"]Report saved to: " + checklist
@@ -1221,27 +1244,47 @@ def pentest_checklist():
                     hosts2[host_id]['ports'][row[3]].update({'port': row[4]})
                     hosts2[host_id]['ports'][row[3]].update({'type': row[5]})
                     hosts2[host_id]['ports'][row[3]].update({'service': row[6]})
-                tool_data = db_query("""SELECT vuln_id, gnaat_id, tool, txt FROM vulnerabilities WHERE host_id=""" +
-                                     str(host_id) + """ and port_id=""" + str(row[3]), assessment)
-                if tool_data:
-                    hosts2[host_id]['ports'][row[3]]['vulns'] = {}
-                for tool in tool_data:
-                    if tool[1] != "":
-                        title = db_query("SELECT title from vulns where gnaat_id=" + tool[1], 'GauntletData')
-                    else:
-                        title = None
-                    if title is not None and len(title) > 0:
-                        hosts2[host_id]['ports'][row[3]]['vulns'].update({tool[0]: {'gnaat_id': tool[1],
-                                                                                    'tool': tool[2],
-                                                                                    'title': title[0][0],
-                                                                                    'output': tool[3]}})
-                    else:
-                        hosts2[host_id]['ports'][row[3]]['vulns'].update({tool[0]: {'gnaat_id': tool[1],
-                                                                                    'tool': tool[2],
-                                                                                    'title': None,
-                                                                                    'output': tool[3]}})
 
-    write_html()
+                #This check for the "tool_title" is here for backward compatability, remove when version are higher
+                columns = db_query("""SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA =
+                                    'gauntlet_""" + assessment + """' AND TABLE_NAME = 'vulnerabilities'""", assessment)
+                if any('tool_title' in column for column in columns):
+                    tool_data = db_query("""SELECT vuln_id, gnaat_id, tool, txt, tool_title FROM vulnerabilities
+                                        WHERE host_id=""" + str(host_id) + """ and port_id=""" +
+                                         str(row[3]), assessment)
+
+                    hosts2[host_id]['ports'][row[3]]['vulns'] = {}
+                    for tool in tool_data:
+                        hosts2[host_id]['ports'][row[3]]['vulns'].update({tool[0]: {'gnaat_id': tool[1],
+                                                                                    'tool': tool[2],
+                                                                                    'title': tool[4],
+                                                                                    'output': tool[3],
+                                                                                    'vuln_id': tool[0]}})
+                else:
+                    tool_data = db_query("""SELECT vuln_id, gnaat_id, tool, txt FROM vulnerabilities
+                                        WHERE host_id=""" + str(host_id) + """ and port_id=""" +
+                                         str(row[3]), assessment)
+                    if tool_data:
+                        hosts2[host_id]['ports'][row[3]]['vulns'] = {}
+                    for tool in tool_data:
+                        if tool[1] != "":
+                            title = db_query("SELECT title from vulns where gnaat_id=" + tool[1], 'GauntletData')
+                        else:
+                            title = None
+                        if title is not None and len(title) > 0:
+                            hosts2[host_id]['ports'][row[3]]['vulns'].update({tool[0]: {'gnaat_id': tool[1],
+                                                                                        'tool': tool[2],
+                                                                                        'title': title[0][0],
+                                                                                        'output': tool[3],
+                                                                                        'vuln_id': tool[0]}})
+                        else:
+                            hosts2[host_id]['ports'][row[3]]['vulns'].update({tool[0]: {'gnaat_id': tool[1],
+                                                                                        'tool': tool[2],
+                                                                                        'title': None,
+                                                                                        'output': tool[3],
+                                                                                        'vuln_id': tool[0]}})
+
+    build_html()
     raw_input("["+note+"]Press enter to return to the main menu")
 
     main_menu()

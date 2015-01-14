@@ -11,76 +11,82 @@ td{
 	text-align:left;
 }
 
-#header{
+.Host-Header{
 	border-left-style:none;
 	text-align:left;
 	font-weight:bold;
 	font-size:125%;
-}
-
-#header, #check-header{
-	background-color:#D49F0E;
+	cursor:pointer;
 }
 
 input{
 	text-align:left;
 }
 
-#Service{
-	width:10%;
-}
-
-#Info{
-	width:80%;
-}
-
-#ports{
+.Port-Header{
 	text-align:left;
 	font-weight:bold;
 	font-size:70%;
 	border-left-style:none;
+	cursor:pointer;
 }
 
-#ports, #check-ports{
-	background-color:#C6C8CA;
+.Tool-Header{
+	cursor:pointer;
 }
 
-#script{
-	font-size:70%;
-	text-align:left;
-	background-color:#E0E0E0;
-}
-
-#notes{
+.notes{
 	height:20px;
 	border: 0px solid black;
 	border-collapse:collapse;
 }
 
-#content{
-	font-size:70%
-}
-
-#check-ports, #check-header{
+.Host-Header-Check, .Port-Header-Check{
 	text-align:left;
 	width:1px;
 	border-right-style:none;
 }
 
-#text-notes{
+[class^=Tool-]{
+	text-align:left;
+	font-size:90%;
+}
+
+.Tool_Output{
+	text-align:left;
+	font-size:90%;
+}
+
+.Notes{
+	height:20px;
+	border: 0px solid black;
+	border-collapse:collapse;
+}
+
+.Notes-Text{
 	width:99%;
 	text-align:left;
 	border: 0px solid black;
 }
 
-#Nessus{
-	text-align:left;
-	font-size:90%;
+/* Checklist Colors */
+
+/* Host (main header) color, default is gold #D49F0E*/
+.Host-Header, .Host-Header-Check{
+	background-color:#D49F0E;
+}
+
+/* Port Row Color, default is light grey #C6C8CA */
+[class^=Port-Header]{
+	background-color:#C6C8CA;
+}
+
+/* Nessus Findings, default color is blue #3399FF */
+[class$=-Nessus]{
 	background-color:#3399FF;
 }
 
-#tool-output{
-	text-align:left;
-	font-size:90%;
+/* Tool Output, default is darker grey #9EA0A2 */
+.Tool_Output{
 	background-color:#9EA0A2;
 }

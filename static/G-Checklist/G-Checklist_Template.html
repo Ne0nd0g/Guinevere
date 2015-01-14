@@ -3,21 +3,42 @@
 <head lang="en">
     <meta charset="UTF-8">
     <title>Pentest Checklist: $ASSESSMENT</title>
+	<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+	<script>
+		$(document).ready(function(){
+		  //Auto Hide or Collapse all tables
+		  $("tr.Host").siblings().hide();
+		  //Click function for host name
+		  $("th.Host-Header").click(function(){
+			if ($(this).parent().siblings().css('display') == 'none') {
+				$(this).parent().siblings().show();
+				//$(this).parent().siblings(".Tool, .Tool_Output").hide();
+				$(this).parent().siblings("[class^='Tool-'], .Tool_Output").hide();
+			}
+			else {
+				$(this).parent().siblings().hide();
+			}
+		  });
+		  //Click function for port
+		  $("td.Port-Header").click(function(){
+			var port = $(this).parent().attr("id");
+			if ($(this).parent().siblings("[id^='" + port + "'][class^='Tool-']").css('display') != 'none') {
+				$(this).parent().siblings("[id^='" + port + "_']").hide();
+			}
+			else {
+				$(this).parent().siblings("[id^='" + port + "'][class^='Tool-']").toggle();
+			}
+		  });
+		  //Click function for tool
+		  $("td.Tool-Header").click(function(){
+			$(this).parent().siblings("[id^='" + $(this).parent().attr("id") + "_']").toggle();
+		  });
+		});
+	</script>
 </head>
 <style>
     $CSS
 </style>
-<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
-<script>
-$(function() {
-	$('tr.parent')
-		.css("cursor","pointer")
-		.attr("title","Click to expand/collapse")
-		.click(function(){
-			$(this).siblings('.child-'+this.id).toggle();
-		});
-	$('tr[@class^=child-]').hide().children('td');
-});</script>
 <body>
 <h1>$ASSESSMENT</h1>
 $DATA
