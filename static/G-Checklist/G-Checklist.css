@@ -86,6 +86,11 @@ input{
 	background-color:#3399FF;
 }
 
+/* NMAP Findings, default color is blue #008A00 */
+[class$=-Nmap]{
+	background-color:#008A00;
+}
+
 /* Tool Output, default is darker grey #9EA0A2 */
 .Tool_Output{
 	background-color:#9EA0A2;

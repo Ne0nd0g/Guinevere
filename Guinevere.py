@@ -20,7 +20,7 @@ import MySQLdb, os, docx, argparse, math, netaddr
 #################################################
 __author__ = "Russel Van Tuyl"
 __license__ = "GPL"
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 __maintainer__ = "Russel Van Tuyl"
 __email__ = "Russel.VanTuyl@gmail.com"
 __status__ = "Development"
@@ -197,17 +197,17 @@ def get_vulns(vuln_IDs, assessment, crosstable):
     """Build dictionary containing the assessment vulnerabilities and their associated information"""
     vulns = {}
     plugins = ""
+    tools = ['Nessus', 'Netsparker', 'Acunetix', 'BurpSuite', 'Nmap', 'Nikto', 'dirb']  # names of tools to ignore
     db = MySQLdb.connect(host=args.db_host, user=args.db_user, passwd=args.db_pass, port=args.db_port, db='GauntletData')
     for i in vuln_IDs:      #Need to just read the database into python once instead of over and over per id
         #need to remove "Nessus 1111" entries
-        if (i.startswith('Nessus') or i.startswith('Netsparker') or i.startswith('Acunetix') or i.startswith('BurpSuite')):
+        if i.split()[0] in tools:
             if i not in plugins and i is "":
                 plugins += "\t["+warn+"]" + i + " plugin needs to be added to your Gauntlet database"
             elif i not in plugins:
                 plugins += "\n\t["+warn+"]" + i + " plugin needs to be added to your Gauntlet database"
         else:
             gauntlet=db.cursor()
-            #gauntlet.execute("""select title, description, solution, report_id from vulns WHERE vureto_id=%s""",(i,)) #Switch to line below for use with Gauntlet instead of Vureto db
             gauntlet.execute("""select title, description, solution, report_id from vulns WHERE gnaat_id=%s""", (i,))
             temp = gauntlet.fetchone()
             gauntlet.close()
@@ -219,7 +219,7 @@ def get_vulns(vuln_IDs, assessment, crosstable):
     
     #Add all hosts with the associated vulnerability to the rpt dictionary
     for j in vuln_IDs:
-        if (j.startswith('Nessus') or j.startswith('Netsparker') or j.startswith('Acunetix') or j.startswith('BurpSuite')):
+        if j.split()[0] in tools:
             pass
         else:
             gauntlet=db2.cursor()
@@ -231,7 +231,7 @@ def get_vulns(vuln_IDs, assessment, crosstable):
 
     #Determine the rank of the vulnerability
     for k in vuln_IDs:
-        if (k.startswith('Nessus') or k.startswith('Netsparker') or k.startswith('Acunetix') or k.startswith('BurpSuite')):
+        if k.split()[0] in tools:
             pass
         else:
             temp4 = db_query("""SELECT s1, s2, s3, s4, s5 FROM cross_data_nva WHERE vuln_id =""" + k, assessment)
