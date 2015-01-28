@@ -3,7 +3,7 @@
 
 """Guinevere is a tool used to automate security assessment reporting"""
 
-import MySQLdb, os, docx, argparse, math, netaddr
+import MySQLdb, os, docx, argparse, math, netaddr, logging, readline, sys
 
 #Requires MySQL driver, python-mysqldb for Linux. Seems to be installed in Kali
 #Requires python-docx library, apt-get update; apt-get install -y python-pip;pip install python-docx
@@ -20,11 +20,17 @@ import MySQLdb, os, docx, argparse, math, netaddr
 #################################################
 __author__ = "Russel Van Tuyl"
 __license__ = "GPL"
-__version__ = "1.1.1"
+__version__ = "1.1.2"
 __maintainer__ = "Russel Van Tuyl"
 __email__ = "Russel.VanTuyl@gmail.com"
 __status__ = "Development"
 G_root = os.path.dirname(os.path.realpath(__file__))
+readline.parse_and_bind('tab: complete')
+readline.set_completer_delims('\t')
+# logging.basicConfig(stream=sys.stdout, format='%(asctime)s\t%(levelname)s\t%(message)s',
+                    # datefmt='%Y-%m-%d %I:%M:%S %p', level=logging.DEBUG)  # Log to STDOUT
+logging.basicConfig(filename=os.path.join(G_root, 'Guinevere.log'), format='%(asctime)s\t%(levelname)s\t%(message)s',
+                    datefmt='%Y-%m-%d %I:%M:%S %p', level=logging.DEBUG)  # Log to File
 #################################################
 #CHANGE TO MATCH YOUR DATABASE
 g_ip = "127.0.0.1"         # Database IP address
@@ -71,6 +77,7 @@ args = parser.parse_args()
 def get_assessment(sel):
     """Connects to the assessment database and prompts user to select an engagement"""
 
+    logging.info('Entering the get_assessment function')
     db = MySQLdb.connect(host=args.db_host, user=args.db_user, passwd=args.db_pass, port=args.db_port)
     gauntlet=db.cursor()
     gauntlet.execute("""show databases""")
@@ -123,12 +130,14 @@ def get_assessment(sel):
                     s = 0
                     i = p
     os.system('clear')
+    logging.info(dbs[int(x)] + " assessment selected by user")
     return dbs[int(x)]
 
 
 def get_crosstable(assessment):
     """Select the which assessment crosstable to use"""
 
+    logging.info('Entering the get_crosstable function')
     crs = ""
     cross = ()
     i = 0
@@ -161,6 +170,7 @@ def get_crosstable(assessment):
             crs = cross[0]
     os.system('clear')
     banner()
+    logging.info(str(crs[0]) + " crosstable selected")
     return crs[0]
 
 
@@ -195,7 +205,7 @@ def assessment_report(vulns):
 
 def get_vulns(vuln_IDs, assessment, crosstable):
     """Build dictionary containing the assessment vulnerabilities and their associated information"""
-    vulns = {}
+    vulns = {}  # TODO Get Port Number
     plugins = ""
     tools = ['Nessus', 'Netsparker', 'Acunetix', 'BurpSuite', 'Nmap', 'Nikto', 'dirb']  # names of tools to ignore
     db = MySQLdb.connect(host=args.db_host, user=args.db_user, passwd=args.db_pass, port=args.db_port, db='GauntletData')
@@ -207,7 +217,7 @@ def get_vulns(vuln_IDs, assessment, crosstable):
             elif i not in plugins:
                 plugins += "\n\t["+warn+"]" + i + " plugin needs to be added to your Gauntlet database"
         else:
-            gauntlet=db.cursor()
+            gauntlet = db.cursor()
             gauntlet.execute("""select title, description, solution, report_id from vulns WHERE gnaat_id=%s""", (i,))
             temp = gauntlet.fetchone()
             gauntlet.close()
@@ -420,6 +430,7 @@ def generate_hosts_table(file, ass):
 
     hosts = {}
     file.add_page_break()
+    logging.info('Entering the generate_hosts_table function')
     print "["+note+"]Generating Interesting Hosts Table"
     #Build dictionary of host IDs and IPs from gauntlet's 'hosts' table
     engagement = db_query("""SELECT value FROM gauntlet_"""+ ass+""".engagement_details WHERE engagement_details.key = 'Engagement Task 1'""", ass)
@@ -451,6 +462,7 @@ def generate_hosts_table(file, ass):
             x += 1
         else:
             pass
+    logging.info("["+info+"]"+str(x) + " Interesting Hosts")
     print "\t["+info+"]"+str(x) + " Interesting Hosts"
     file.add_heading(str(x) + ' Interesting Host(s) List')
     table = file.add_table(rows=1, cols=4)
@@ -766,6 +778,7 @@ def retest():
 def main_menu():
     """Display the main menu"""
 
+    logging.info('Entered into main_menu function')
     i = None
     valid_options = {1: generate_assessment_report,
                      2: sql_dump,
@@ -856,7 +869,7 @@ def get_path():
 
 def write_single_vul(rpt, report):
     """Write the single vulnerability paragraph"""
-
+    # TODO Add Port Number
     report.add_heading(rpt['report_title'] + " (" + rpt['report_rating']+")", 3)
 
     for i in rpt['vulns']:
@@ -916,7 +929,8 @@ def write_single_vul(rpt, report):
 
 
 def write_multi_vul(rpt, report):
-
+    """Write report data for grouped or multi vulnerabilities"""
+    # TODO Add Port Number
     total_hosts = 0
     for i in rpt['vulns']:
         if args.sC and rpt['vulns'][i]['vuln_rating'] == 'Critical':
@@ -980,7 +994,7 @@ def write_multi_vul(rpt, report):
 
 
 def write_all_vuln(vuln, the_Report):
-
+    # TODO Add Port Number
     print "["+note+"]Writing list of all vulnerabilities to the report: "
     the_Report.add_page_break()
     the_Report.add_heading("List of Assessment Vulnerabilities", 1)
@@ -1032,6 +1046,7 @@ def write_all_vuln(vuln, the_Report):
 def generate_assessment_report():
     """The main function for automatically generating an assessment report"""
 
+    logging.info('Entering the generate_assessment_report function')
     os.system('clear')
     banner()
     print "Retrieving available assessments..."
@@ -1056,44 +1071,59 @@ def generate_assessment_report():
         if assessment_db[i]['report_rating'] == 'Critical' and args.sC:
             if len(assessment_db[i]['vulns']) > 1:                          # Grouped Vulnerabilty Write-up
                 print '\t['+info+']Multi finding: ', assessment_db[i]['report_title']
+                logging.info('['+info+']Multi finding: ' + assessment_db[i]['report_title'])
                 the_report = write_multi_vul(assessment_db[i], the_Report)
             elif assessment_db[i]['report_rating'] is not None:   # Single Vulnerability Write-up
+                logging.info("["+info+"]" + assessment_db[i]['report_title'] +
+                             "(" + assessment_db[i]['report_rating'] + ")")
                 print "\t["+info+"]" + assessment_db[i]['report_title'] + "(" + assessment_db[i]['report_rating'] + ")"
                 the_Report = write_single_vul(assessment_db[i], the_Report)
 
     for i in assessment_db:
         if assessment_db[i]['report_rating'] == 'High' and args.sH:
             if len(assessment_db[i]['vulns']) > 1:
+                logging.info('['+info+']Multi finding: ' + assessment_db[i]['report_title'])
                 print '\t['+info+']Multi finding: ', assessment_db[i]['report_title']
                 the_report = write_multi_vul(assessment_db[i], the_Report)
             elif assessment_db[i]['report_rating'] is not None:
+                logging.info("["+info+"]" + assessment_db[i]['report_title'] +
+                             "(" + assessment_db[i]['report_rating'] + ")")
                 print "\t["+info+"]" + assessment_db[i]['report_title'] + "(" + assessment_db[i]['report_rating'] + ")"
                 the_Report = write_single_vul(assessment_db[i], the_Report)
 
     for i in assessment_db:
         if assessment_db[i]['report_rating'] == 'Medium' and args.sM:
             if len(assessment_db[i]['vulns']) > 1:
+                logging.info('['+info+']Multi finding: ' + assessment_db[i]['report_title'])
                 print '\t['+info+']Multi finding: ', assessment_db[i]['report_title']
                 the_report = write_multi_vul(assessment_db[i], the_Report)
             elif assessment_db[i]['report_rating'] is not None:
+                logging.info("["+info+"]" + assessment_db[i]['report_title'] +
+                             "(" + assessment_db[i]['report_rating'] + ")")
                 print "\t["+info+"]" + assessment_db[i]['report_title'] + "(" + assessment_db[i]['report_rating'] + ")"
                 the_Report = write_single_vul(assessment_db[i], the_Report)
 
     for i in assessment_db:
         if assessment_db[i]['report_rating'] == 'Low' and args.sL:
             if len(assessment_db[i]['vulns']) > 1:
+                logging.info('['+info+']Multi finding: ' + assessment_db[i]['report_title'])
                 print '\t['+info+']Multi finding: ', assessment_db[i]['report_title']
                 the_report = write_multi_vul(assessment_db[i], the_Report)
             elif assessment_db[i]['report_rating'] is not None:
+                logging.info("["+info+"]" + assessment_db[i]['report_title'] +
+                             "(" + assessment_db[i]['report_rating'] + ")")
                 print "\t["+info+"]" + assessment_db[i]['report_title'] + "(" + assessment_db[i]['report_rating'] + ")"
                 the_Report = write_single_vul(assessment_db[i], the_Report)
 
     for i in assessment_db:
         if assessment_db[i]['report_rating'] == 'Informational' and args.sI:
             if len(assessment_db[i]['vulns']) > 1:
+                logging.info('['+info+']Multi finding: ' + assessment_db[i]['report_title'])
                 print '\t['+info+']Multi finding: ', assessment_db[i]['report_title']
                 the_report = write_multi_vul(assessment_db[i], the_Report)
             elif assessment_db[i]['report_rating'] is not None:
+                logging.info("["+info+"]" + assessment_db[i]['report_title'] +
+                             "(" + assessment_db[i]['report_rating'] + ")")
                 print "\t["+info+"]" + assessment_db[i]['report_title'] + "(" + assessment_db[i]['report_rating'] + ")"
                 the_Report = write_single_vul(assessment_db[i], the_Report)
 
@@ -1145,6 +1175,8 @@ def patch_gauntlet():
 
 def pentest_checklist():
     """Generate a pentest checklist to be used for an assessment"""
+
+    logging.info('Entered into pentest_checklist function')
 
     def build_html():
         """Generate HTML pentest checklist"""
@@ -1215,6 +1247,7 @@ def pentest_checklist():
         html_file.close()
         print "["+warn+"]Report saved to: " + checklist
 
+    logging.info('Entered into build_html function within the pentest_checklist function')
     assessment = get_assessment("the assessment to create a pentest checklist for")
     banner()
     print "["+note+"]Building Pentest Checklist for " + assessment + "..."
@@ -1294,6 +1327,7 @@ if __name__ == '__main__':
     try:
         main_menu()
     except KeyboardInterrupt:
+        logging.info('User Interrupt! Quitting')
         print "\n["+warn+"]User Interrupt! Quitting...."
     except SystemExit:
         pass
