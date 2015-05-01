@@ -1,0 +1,5 @@
+1.2.0
+Added --debug command line argument
+Changed colors for printing vulnerability criticalities to the terminal
+Added gather_assessment_details function to gather additional information about the assessment from Gauntlet
+Added new menu item "Generate Assessment JSON File" and associated function generate_assessment_json

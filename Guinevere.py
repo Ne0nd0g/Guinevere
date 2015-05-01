@@ -3,7 +3,7 @@
 
 """Guinevere is a tool used to automate security assessment reporting"""
 
-import MySQLdb, os, docx, argparse, math, netaddr, logging, readline, sys
+import MySQLdb, os, docx, argparse, math, netaddr, logging, readline, sys, json
 
 #Requires MySQL driver, python-mysqldb for Linux. Seems to be installed in Kali
 #Requires python-docx library, apt-get update; apt-get install -y python-pip;pip install python-docx
@@ -20,7 +20,7 @@ import MySQLdb, os, docx, argparse, math, netaddr, logging, readline, sys
 #################################################
 __author__ = "Russel Van Tuyl"
 __license__ = "GPL"
-__version__ = "1.1.2"
+__version__ = "1.2.0"
 __maintainer__ = "Russel Van Tuyl"
 __email__ = "Russel.VanTuyl@gmail.com"
 __status__ = "Development"
@@ -70,6 +70,7 @@ parser.add_argument('-aD', '--assessment-date', action='store_true', default=Fal
                                                                                          'to report on')
 parser.add_argument('-T', '--tool-output', action='store_false', default=True, help="Exclude Tool Output When Printing "
                                                                                     "G-Checklist")
+parser.add_argument('--debug', action='store_true', default=False, help="Enable debug output to console")
 #parser.add_argument('-O', '--output', type=str, required=True, help="Output directory for .docx file")
 args = parser.parse_args()
 
@@ -194,8 +195,11 @@ def assessment_vulns(assessment, crosstable):
 def assessment_report(vulns):
     """Builds a unique list of Report IDs for the selected assessment and crosstable"""
 
+    logging.info('Entered assessment_report function')
     temp = []
     for i in vulns:
+        if args.debug:
+            logging.info('Vulnerability: ' + i + " - " + vulns[i]['vuln_title'])
         if vulns[i]['vuln_report_id'] is not None:
             temp.append(vulns[i]['vuln_report_id'])
         else:
@@ -205,6 +209,8 @@ def assessment_report(vulns):
 
 def get_vulns(vuln_IDs, assessment, crosstable):
     """Build dictionary containing the assessment vulnerabilities and their associated information"""
+
+    logging.info('Entered get_vulns function...')
     vulns = {}  # TODO Get Port Number
     plugins = ""
     tools = ['Nessus', 'Netsparker', 'Acunetix', 'BurpSuite', 'Nmap', 'Nikto', 'dirb']  # names of tools to ignore
@@ -284,17 +290,20 @@ def get_vulns(vuln_IDs, assessment, crosstable):
 
 def get_report(report_IDs, vuln):
     """Build a dictionary containing all of the reporting information"""
+    logging.info("Entering get_report function")
 
     rpt = {}
     db = MySQLdb.connect(host=args.db_host, user=args.db_user, passwd=args.db_pass, port=args.db_port, db='GauntletData') #change to GauntletData after dev/or vureto for dev
     
     for i in report_IDs:
-        gauntlet=db.cursor()
-        gauntlet.execute("""select title, identification, explanation, impact, recommendation from report WHERE report_id=%s""",(i,))
+        gauntlet = db.cursor()
+        gauntlet.execute("""select title, identification, explanation, impact, recommendation from report
+                         WHERE report_id=%s""" , (i,))
         temp = gauntlet.fetchone()
         gauntlet.close()
-        rpt[i] = {'report_id': i, 'report_title': temp[0], 'report_identification': temp[1], 'report_explanation': temp[2], 'report_impact': temp[3], 'report_recommendation': temp[4]}
-    for i in vuln: #Add all vulnerabilities with this report ID to the dictionary
+        rpt[i] = {'report_id': i, 'report_title': temp[0], 'report_identification': temp[1],
+                  'report_explanation': temp[2], 'report_impact': temp[3], 'report_recommendation': temp[4]}
+    for i in vuln:  # Add all vulnerabilities with this report ID to the dictionary
         if vuln[i]['vuln_report_id'] is not None:
             if 'vulns' in rpt[vuln[i]['vuln_report_id']]:
                 rpt[vuln[i]['vuln_report_id']]['vulns'][vuln[i]['vuln_id']] = vuln[i]
@@ -303,7 +312,7 @@ def get_report(report_IDs, vuln):
         else:
             pass
 
-    for i in rpt: #Determine the highest severity level and set it for the reporting record
+    for i in rpt:  # Determine the highest severity level and set it for the reporting record
         r = []
         for j in rpt[i]['vulns']:
             r.append(rpt[i]['vulns'][j]['vuln_rating'])
@@ -507,6 +516,7 @@ def generate_hosts_table(file, ass):
 def generate_vuln_list(report, assessment, rpt):
     """Build the bullet list of vulnerabilities used in the executive summary"""
 
+    logging.info("Entering the generate_vuln_list function")
     engagement = db_query("""SELECT value FROM gauntlet_""" + assessment + """.engagement_details WHERE engagement_details.key = 'Engagement Task 1'""", assessment)
 
     if engagement:
@@ -525,7 +535,7 @@ def generate_vuln_list(report, assessment, rpt):
         report.add_paragraph(s, style='ListBullet')
 
     for i in rpt:
-        if len(rpt[i]['vulns']) > 1: # Check to see if is a multi vuln report item
+        if len(rpt[i]['vulns']) > 1:  # Check to see if is a multi vuln report item
             h = 0
             for j in rpt[i]['vulns']:
                 h += len(rpt[i]['vulns'][j]['vuln_hosts'])
@@ -785,7 +795,8 @@ def main_menu():
                      3: retest,
                      4: patch_gauntlet,
                      5: pentest_checklist,
-                     6: exit,
+                     6: generate_assessment_json,
+                     7: exit,
     }
     os.system('clear')
     banner()
@@ -797,7 +808,8 @@ def main_menu():
             print "[3]Generate Retest Report"
             print "[4]Patch Gauntled Database"
             print "[5]Generate Pentest Checklist"
-            print "[6]Exit"
+            print "[6]Generate Assessment JSON File"
+            print "[7]Exit"
             i = raw_input("\nWhat would you like to do: ")
             if int(i) in valid_options:
                 valid_options[int(i)]()
@@ -1067,18 +1079,21 @@ def generate_assessment_report():
     if ((len(assessment_db) is 0) and args.all_vulns is False):
         exit("["+warn+"]Nothing to report on, quitting...")
 
-    for i in assessment_db: # Write the report in severity order
+    logging.info("Writing the critical vulnerability narratives to the report")
+    for i in assessment_db:  # Write the report in severity order
         if assessment_db[i]['report_rating'] == 'Critical' and args.sC:
-            if len(assessment_db[i]['vulns']) > 1:                          # Grouped Vulnerabilty Write-up
+            if len(assessment_db[i]['vulns']) > 1:                          # Grouped Vulnerability Write-up
                 print '\t['+info+']Multi finding: ', assessment_db[i]['report_title']
                 logging.info('['+info+']Multi finding: ' + assessment_db[i]['report_title'])
                 the_report = write_multi_vul(assessment_db[i], the_Report)
             elif assessment_db[i]['report_rating'] is not None:   # Single Vulnerability Write-up
                 logging.info("["+info+"]" + assessment_db[i]['report_title'] +
                              "(" + assessment_db[i]['report_rating'] + ")")
-                print "\t["+info+"]" + assessment_db[i]['report_title'] + "(" + assessment_db[i]['report_rating'] + ")"
+                print "\t["+info+"]" + assessment_db[i]['report_title'] + " \033[0;0;31m(" + \
+                    assessment_db[i]['report_rating'] + ")\033[0m"
                 the_Report = write_single_vul(assessment_db[i], the_Report)
 
+    logging.info("Writing the high vulnerability narratives to the report")
     for i in assessment_db:
         if assessment_db[i]['report_rating'] == 'High' and args.sH:
             if len(assessment_db[i]['vulns']) > 1:
@@ -1088,9 +1103,11 @@ def generate_assessment_report():
             elif assessment_db[i]['report_rating'] is not None:
                 logging.info("["+info+"]" + assessment_db[i]['report_title'] +
                              "(" + assessment_db[i]['report_rating'] + ")")
-                print "\t["+info+"]" + assessment_db[i]['report_title'] + "(" + assessment_db[i]['report_rating'] + ")"
+                print "\t["+info+"]" + assessment_db[i]['report_title'] + " \033[0;0;35m(" + \
+                      assessment_db[i]['report_rating'] + ")\033[0m"
                 the_Report = write_single_vul(assessment_db[i], the_Report)
 
+    logging.info("Writing the medium vulnerability narratives to the report")
     for i in assessment_db:
         if assessment_db[i]['report_rating'] == 'Medium' and args.sM:
             if len(assessment_db[i]['vulns']) > 1:
@@ -1100,9 +1117,11 @@ def generate_assessment_report():
             elif assessment_db[i]['report_rating'] is not None:
                 logging.info("["+info+"]" + assessment_db[i]['report_title'] +
                              "(" + assessment_db[i]['report_rating'] + ")")
-                print "\t["+info+"]" + assessment_db[i]['report_title'] + "(" + assessment_db[i]['report_rating'] + ")"
+                print "\t["+info+"]" + assessment_db[i]['report_title'] + " \033[0;0;33m(" + \
+                      assessment_db[i]['report_rating'] + ")\033[0m"
                 the_Report = write_single_vul(assessment_db[i], the_Report)
 
+    logging.info("Writing the low vulnerability narratives to the report")
     for i in assessment_db:
         if assessment_db[i]['report_rating'] == 'Low' and args.sL:
             if len(assessment_db[i]['vulns']) > 1:
@@ -1112,9 +1131,11 @@ def generate_assessment_report():
             elif assessment_db[i]['report_rating'] is not None:
                 logging.info("["+info+"]" + assessment_db[i]['report_title'] +
                              "(" + assessment_db[i]['report_rating'] + ")")
-                print "\t["+info+"]" + assessment_db[i]['report_title'] + "(" + assessment_db[i]['report_rating'] + ")"
+                print "\t["+info+"]" + assessment_db[i]['report_title'] + " \033[0;0;34m(" + \
+                      assessment_db[i]['report_rating'] + ")\033[0m"
                 the_Report = write_single_vul(assessment_db[i], the_Report)
 
+    logging.info("Writing the informational vulnerability narratives to the report")
     for i in assessment_db:
         if assessment_db[i]['report_rating'] == 'Informational' and args.sI:
             if len(assessment_db[i]['vulns']) > 1:
@@ -1124,13 +1145,60 @@ def generate_assessment_report():
             elif assessment_db[i]['report_rating'] is not None:
                 logging.info("["+info+"]" + assessment_db[i]['report_title'] +
                              "(" + assessment_db[i]['report_rating'] + ")")
-                print "\t["+info+"]" + assessment_db[i]['report_title'] + "(" + assessment_db[i]['report_rating'] + ")"
+                print "\t["+info+"]" + assessment_db[i]['report_title'] + " \033[0;0;37m(" + \
+                      assessment_db[i]['report_rating'] + ")\033[0m"
                 the_Report = write_single_vul(assessment_db[i], the_Report)
 
     if args.all_vulns:
         the_Report = write_all_vuln(vuln, the_Report)
     the_Report = generate_hosts_table(the_Report, assessment)
     save_report(the_Report, assessment)
+
+
+def generate_assessment_json():
+    """Generate a JSON object of the aggregated assessment information"""
+
+    logging.info('Entering the generate_assessment_json function')
+    os.system('clear')
+    banner()
+    print "Retrieving available assessments..."
+    assessment = get_assessment("the assessment to create a JSON object for")
+    banner()
+    crosstable = get_crosstable(assessment)
+    vID = assessment_vulns(assessment, crosstable)
+    os.system('clear')
+    banner()
+    print "["+note+"]Building JSON object for " + assessment + " Crosstable " + crosstable + "..."
+    vuln = get_vulns(vID, assessment, crosstable)
+    rID = assessment_report(vuln)
+    assessment_db = get_report(rID, vuln)
+    engagment_details = gather_assessment_details(assessment)
+    json_dict = {'engagment_details': engagment_details, 'report': assessment_db}
+    json_object = json.dumps(json_dict)
+    out_dir = get_path()
+    json_file = os.path.join(out_dir, "Guinevere_" + assessment + "_" + crosstable + ".json")
+    with open(json_file, "w") as j:
+        j.write(json_object)
+    print "["+warn+"]Assessment JSON object saved to: " + json_file
+    raw_input("["+question+"]Press enter to continue...")
+    main_menu()
+
+
+def gather_assessment_details(assessment):
+    """Gather assessment details from Gauntlet and create a dictionary"""
+
+    logging.info('Entering the gather_assessment_details function')
+    engagement = db_query("""SELECT value FROM gauntlet_""" + assessment + """.engagement_details WHERE
+                          engagement_details.key = 'Engagement Task 1'""", assessment)[0][0]
+    start_date = db_query("""SELECT value FROM gauntlet_""" + assessment + """.engagement_details WHERE
+                          engagement_details.key = 'Start Date'""", assessment)[0][0]
+    end_date = db_query("""SELECT value FROM gauntlet_""" + assessment + """.engagement_details WHERE
+                          engagement_details.key = 'End Date'""", assessment)[0][0]
+    analyst = db_query("""SELECT value FROM gauntlet_""" + assessment + """.engagement_details WHERE
+                          engagement_details.key = 'Analyst 1'""", assessment)[0][0]
+
+    i = {'engagment_type': engagement, 'start_date': start_date, 'stop_date': end_date, 'analyst': analyst}
+    return i
 
 
 def patch_gauntlet():
@@ -1322,6 +1390,11 @@ def pentest_checklist():
 
     main_menu()
 
+if args.debug:
+    print "\n["+warn+"]Debug output enabled"
+    logging.basicConfig(stream=sys.stdout, format='%(asctime)s\t%(levelname)s\t%(message)s',
+                        datefmt='%Y-%m-%d %I:%M:%S %p', level=logging.DEBUG)  # Log to STDOUT
+    raw_input("Press enter to continue...")
 
 if __name__ == '__main__':
     try:
