@@ -20,7 +20,7 @@ import MySQLdb, os, docx, argparse, math, netaddr, logging, readline, sys, json
 #################################################
 __author__ = "Russel Van Tuyl"
 __license__ = "GPL"
-__version__ = "1.2.0"
+__version__ = "1.2.1"
 __maintainer__ = "Russel Van Tuyl"
 __email__ = "Russel.VanTuyl@gmail.com"
 __status__ = "Development"
@@ -215,7 +215,11 @@ def get_vulns(vuln_IDs, assessment, crosstable):
     plugins = ""
     tools = ['Nessus', 'Netsparker', 'Acunetix', 'BurpSuite', 'Nmap', 'Nikto', 'dirb']  # names of tools to ignore
     db = MySQLdb.connect(host=args.db_host, user=args.db_user, passwd=args.db_pass, port=args.db_port, db='GauntletData')
+    countvulnVar = 0
     for i in vuln_IDs:      #Need to just read the database into python once instead of over and over per id
+        countvulnVar = countvulnVar + 1.0
+        progress = str(countvulnVar / len(vuln_IDs) * 100)
+        print "\r\t[" + note + "]Querying Database For Vulnerability Information:", progress[:5] + "%",
         #need to remove "Nessus 1111" entries
         if i.split()[0] in tools:
             if i not in plugins and i is "":
@@ -234,7 +238,12 @@ def get_vulns(vuln_IDs, assessment, crosstable):
     db2 = MySQLdb.connect(host=args.db_host, user=args.db_user, passwd=args.db_pass, port=args.db_port, db='gauntlet_'+ assessment)
     
     #Add all hosts with the associated vulnerability to the rpt dictionary
+    print ""
+    countvulnVar = 0
     for j in vuln_IDs:
+        countvulnVar = countvulnVar + 1.0
+        progress = str(countvulnVar / len(vuln_IDs) * 100)
+        print "\r\t[" + note + "]Querying Database For Affected Hosts:", progress[:5] + "%",
         if j.split()[0] in tools:
             pass
         else:
@@ -246,7 +255,12 @@ def get_vulns(vuln_IDs, assessment, crosstable):
             vulns[j].update({'vuln_hosts': temp2})
 
     #Determine the rank of the vulnerability
+    print ""
+    countvulnVar = 0
     for k in vuln_IDs:
+        countvulnVar = countvulnVar + 1.0
+        progress = str(countvulnVar / len(vuln_IDs) * 100)
+        print "\r\t[" + note + "]Querying Database For Vulnerability Rank:", progress[:5] + "%",
         if k.split()[0] in tools:
             pass
         else:
@@ -1080,6 +1094,7 @@ def generate_assessment_report():
         exit("["+warn+"]Nothing to report on, quitting...")
 
     logging.info("Writing the critical vulnerability narratives to the report")
+
     for i in assessment_db:  # Write the report in severity order
         if assessment_db[i]['report_rating'] == 'Critical' and args.sC:
             if len(assessment_db[i]['vulns']) > 1:                          # Grouped Vulnerability Write-up
