@@ -299,6 +299,7 @@ def get_vulns(vuln_IDs, assessment, crosstable):
 
     if plugins != "":
         print plugins
+    print ""
     return vulns
 
 
@@ -494,7 +495,7 @@ def generate_hosts_table(file, ass):
     hdr_cells[1].text = 'Hostname'
     hdr_cells[2].text = 'Open TCP Port(s)'
     hdr_cells[3].text = 'Open UDP Port(s)'
-    table.style = 'MediumGrid1-Accent1'
+    table.style = 'Medium Grid 1 Accent 1'
 
     # Build a list of sorted IPs
     sorted_hosts = []
@@ -546,7 +547,7 @@ def generate_vuln_list(report, assessment, rpt):
         s = s.rstrip()
         s = s.rstrip('.')
         s = s[0:1].upper() + s[1:]
-        report.add_paragraph(s, style='ListBullet')
+        report.add_paragraph(s, style='List Bullet')
 
     for i in rpt:
         if len(rpt[i]['vulns']) > 1:  # Check to see if is a multi vuln report item
@@ -680,7 +681,7 @@ def retest():
     #Build Status Table
     retest_report.add_heading('Vulnerability Status')
     status_table = retest_report.add_table(rows=1, cols=3)
-    status_table.style = 'MediumGrid1-Accent1'
+    status_table.style = 'Medium Grid 1 Accent 1'
     hdr_cells = status_table.rows[0].cells
     hdr_cells[0].text = 'Severity'
     hdr_cells[1].text = 'Vulnerability'
@@ -721,7 +722,7 @@ def retest():
     #Build Still Vulnerable Hosts Table
     retest_report.add_heading('Hosts That Are Still Vulnerable')
     vulnerable_table = retest_report.add_table(rows=1, cols=2)
-    vulnerable_table.style = 'MediumGrid1-Accent1'
+    vulnerable_table.style = 'Medium Grid 1 Accent 1'
     hdr_cells = vulnerable_table.rows[0].cells
     hdr_cells[0].text = 'Vulnerability'
     hdr_cells[1].text = 'Hosts'
@@ -773,7 +774,7 @@ def retest():
     retest_report.add_heading('Retest Statistics')
     retest_report.add_paragraph(s)
     stats_table = retest_report.add_table(rows=1, cols=5)
-    stats_table.style = 'MediumGrid1-Accent1'
+    stats_table.style = 'Medium Grid 1 Accent 1'
     hdr_cells = stats_table.rows[0].cells
     hdr_cells[0].text = ''
     hdr_cells[1].text = 'Critical'
@@ -896,7 +897,7 @@ def get_path():
 def write_single_vul(rpt, report):
     """Write the single vulnerability paragraph"""
     # TODO Add Port Number
-    report.add_heading(rpt['report_title'] + " (" + rpt['report_rating']+")", 3)
+    report.add_heading(rpt['report_title'] + " (" + rpt['report_rating']+")")
 
     for i in rpt['vulns']:
         hosts = []
@@ -933,7 +934,7 @@ def write_single_vul(rpt, report):
             c = 4  # number of desired columns
             r = int(math.ceil((len(hosts) / float(4))))  # Determine number of rows for table using a max of 4 columns
             hosts_table = report.add_table(rows=r, cols=c)
-            hosts_table.style = 'MediumGrid1-Accent1'
+            hosts_table.style = 'Medium Grid 1 Accent 1'
             z = 0   # number of hosts
             x = 0   # row indices
             y = 0   # column indices
@@ -993,7 +994,7 @@ def write_multi_vul(rpt, report):
     hdr_cells[0].text = 'Severity'
     hdr_cells[1].text = 'Vulnerability'
     hdr_cells[2].text = 'Affected Host(s)'
-    table.style = 'MediumGrid1-Accent1'
+    table.style = 'Medium Grid 1 Accent 1'
     def writeRow(r, t, h):
         row_cells = table.add_row().cells
         row_cells[0].text = r
@@ -1029,36 +1030,36 @@ def write_all_vuln(vuln, the_Report):
             print "\t["+info+"]"+ vuln[i]['vuln_title'], "(" + vuln[i]['vuln_rating'] + ")"
             the_Report.add_heading(vuln[i]['vuln_title'] + " (" + vuln[i]['vuln_rating'] + ")", 3)
             if args.all_verb:
-                the_Report.add_paragraph(vuln[i]['vuln_desc'], style='BodyText')
-                the_Report.add_paragraph(vuln[i]['vuln_sol'], style='BodyText')
+                the_Report.add_paragraph(vuln[i]['vuln_desc'], style='Body Text')
+                the_Report.add_paragraph(vuln[i]['vuln_sol'], style='Body Text')
     for i in vuln:
         if args.sH and vuln[i]['vuln_rating'] is 'High':
             print "\t["+info+"]"+ vuln[i]['vuln_title'], "(" + vuln[i]['vuln_rating'] + ")"
             the_Report.add_heading(vuln[i]['vuln_title'] + " (" + vuln[i]['vuln_rating'] + ")", 3)
             if args.all_verb:
-                the_Report.add_paragraph(vuln[i]['vuln_desc'], style='BodyText')
-                the_Report.add_paragraph(vuln[i]['vuln_sol'], style='BodyText')
+                the_Report.add_paragraph(vuln[i]['vuln_desc'], style='Body Text')
+                the_Report.add_paragraph(vuln[i]['vuln_sol'], style='Body Text')
     for i in vuln:
         if args.sM and vuln[i]['vuln_rating'] is 'Medium':
             print "\t["+info+"]"+ vuln[i]['vuln_title'], "(" + vuln[i]['vuln_rating'] + ")"
             the_Report.add_heading(vuln[i]['vuln_title'] + " (" + vuln[i]['vuln_rating'] + ")", 3)
             if args.all_verb:
-                the_Report.add_paragraph(vuln[i]['vuln_desc'], style='BodyText')
-                the_Report.add_paragraph(vuln[i]['vuln_sol'], style='BodyText')
+                the_Report.add_paragraph(vuln[i]['vuln_desc'], style='Body Text')
+                the_Report.add_paragraph(vuln[i]['vuln_sol'], style='Body Text')
     for i in vuln:
         if args.sL and vuln[i]['vuln_rating'] is 'Low':
             print "\t["+info+"]"+ vuln[i]['vuln_title'], "(" + vuln[i]['vuln_rating'] + ")"
             the_Report.add_heading(vuln[i]['vuln_title'] + " (" + vuln[i]['vuln_rating'] + ")", 3)
             if args.all_verb:
-                the_Report.add_paragraph(vuln[i]['vuln_desc'], style='BodyText')
-                the_Report.add_paragraph(vuln[i]['vuln_sol'], style='BodyText')
+                the_Report.add_paragraph(vuln[i]['vuln_desc'], style='Body Text')
+                the_Report.add_paragraph(vuln[i]['vuln_sol'], style='Body Text')
     for i in vuln:
         if args.sI and vuln[i]['vuln_rating'] is 'Informational':
             print "\t["+info+"]"+ vuln[i]['vuln_title'], "(" + vuln[i]['vuln_rating'] + ")"
             the_Report.add_heading(vuln[i]['vuln_title'] + " (" + vuln[i]['vuln_rating'] + ")", 3)
             if args.all_verb:
-                the_Report.add_paragraph(vuln[i]['vuln_desc'], style='BodyText')
-                the_Report.add_paragraph(vuln[i]['vuln_sol'], style='BodyText')
+                the_Report.add_paragraph(vuln[i]['vuln_desc'], style='Body Text')
+                the_Report.add_paragraph(vuln[i]['vuln_sol'], style='Body Text')
         #if vuln[i]['vuln_report_id'] is None and (((vuln[i]['vuln_rating'] is "Critical") and args.sC) or ((vuln[i]['vuln_rating'] is "High") and args.sH) or ((vuln[i]['vuln_rating'] is "Medium") and args.sM) or ((vuln[i]['vuln_rating'] is "Low") and args.sL) or ((vuln[i]['vuln_rating'] is "Informational") and args.sI)):
             #print "\t["+info+"]"+ vuln[i]['vuln_title'], "(" + vuln[i]['vuln_rating'] + ")"
             #the_Report.add_heading(vuln[i]['vuln_title'] + " (" + vuln[i]['vuln_rating'] + ")", 3)
