@@ -4,6 +4,7 @@
 """Guinevere is a tool used to automate security assessment reporting"""
 
 import MySQLdb, os, docx, argparse, math, netaddr, logging, readline, sys, json
+from warnings import filterwarnings, resetwarnings
 
 #Requires MySQL driver, python-mysqldb for Linux. Seems to be installed in Kali
 #Requires python-docx library, apt-get update; apt-get install -y python-pip;pip install python-docx
@@ -215,6 +216,7 @@ def get_vulns(vuln_IDs, assessment, crosstable):
     plugins = ""
     tools = ['Nessus', 'Netsparker', 'Acunetix', 'BurpSuite', 'Nmap', 'Nikto', 'dirb']  # names of tools to ignore
     db = MySQLdb.connect(host=args.db_host, user=args.db_user, passwd=args.db_pass, port=args.db_port, db='GauntletData')
+    filterwarnings('ignore', category = MySQLdb.Warning) # Disable MySQL Warnings
     countvulnVar = 0
     for i in vuln_IDs:      #Need to just read the database into python once instead of over and over per id
         countvulnVar = countvulnVar + 1.0
@@ -236,7 +238,6 @@ def get_vulns(vuln_IDs, assessment, crosstable):
             else:
                 vulns[i] = {'vuln_id': i, 'vuln_title': temp[0], 'vuln_desc': temp[1], 'vuln_sol': temp[2], 'vuln_report_id': temp[3]}
     db2 = MySQLdb.connect(host=args.db_host, user=args.db_user, passwd=args.db_pass, port=args.db_port, db='gauntlet_'+ assessment)
-    
     #Add all hosts with the associated vulnerability to the rpt dictionary
     print ""
     countvulnVar = 0
@@ -298,8 +299,9 @@ def get_vulns(vuln_IDs, assessment, crosstable):
                 vulns[k].update({'vuln_rating': None})
 
     if plugins != "":
-        print plugins
+        print "%s" %(plugins,),
     print ""
+    resetwarnings() #Re-enable MySQL Warnings
     return vulns
 
 
