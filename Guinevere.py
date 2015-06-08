@@ -21,7 +21,7 @@ from warnings import filterwarnings, resetwarnings
 #################################################
 __author__ = "Russel Van Tuyl"
 __license__ = "GPL"
-__version__ = "1.2.1"
+__version__ = "1.2.2"
 __maintainer__ = "Russel Van Tuyl"
 __email__ = "Russel.VanTuyl@gmail.com"
 __status__ = "Development"
@@ -205,6 +205,7 @@ def assessment_report(vulns):
             temp.append(vulns[i]['vuln_report_id'])
         else:
             pass
+    logging.info('Leaving assessment_report_function')
     return set(temp)
 
 
@@ -350,6 +351,7 @@ def get_report(report_IDs, vuln):
             continue
         else:
             rpt[i]['report_rating'] = None
+    logging.info('Leaving get_report Function')
     return rpt
 
 
@@ -551,7 +553,10 @@ def generate_vuln_list(report, assessment, rpt):
         s = s[0:1].upper() + s[1:]
         report.add_paragraph(s, style='List Bullet')
 
+    logging.info("Writing bullets based on criticality in the generate_vuln_list function")
     for i in rpt:
+        if args.debug:
+            print "[" + info + "]%s" % rpt[i]
         if len(rpt[i]['vulns']) > 1:  # Check to see if is a multi vuln report item
             h = 0
             for j in rpt[i]['vulns']:
