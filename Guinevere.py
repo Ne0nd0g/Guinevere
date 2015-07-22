@@ -21,7 +21,7 @@ from warnings import filterwarnings, resetwarnings
 #################################################
 __author__ = "Russel Van Tuyl"
 __license__ = "GPL"
-__version__ = "1.2.2"
+__version__ = "1.2.3"
 __maintainer__ = "Russel Van Tuyl"
 __email__ = "Russel.VanTuyl@gmail.com"
 __status__ = "Development"
@@ -1308,10 +1308,9 @@ def pentest_checklist():
                                                       str(hosts2[host]['ports'][port_id]['vulns'][vuln_id]['title']))
                         html_part = html_part.replace('$tool-output',
                                                       (hosts2[host]['ports'][port_id]['vulns'][vuln_id]['output'])
-                                                      .replace('<script>', '&#x3c;&#x73;&#x63;&#x72;&#x69;&#x70;&#x74;'
-                                                                           '&#x3e;')
-                                                      .replace('</scrip>', '&#x3c;&#x2f;&#x73;&#x63;&#x72;&#x69;&#x70;'
-                                                                           '&#x74;&#x3e;'))
+                                                      .replace('&', '&amp;')
+                                                      .replace('<', '&lt;')
+                                                      .replace('>', '&gt;'))
 
                 html_part = html_part.replace('$port-id', hosts2[host]['ports'][port_id]['port'] + "-" +
                                               hosts2[host]['ports'][port_id]['type'])
