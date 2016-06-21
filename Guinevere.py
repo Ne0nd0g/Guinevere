@@ -727,22 +727,66 @@ def retest():
             row_cells[2].text = retest[i]['status']
 
     # Build Still Vulnerable Hosts Table
-    retest_report.add_heading('Hosts That Are Still Vulnerable')
-    vulnerable_table = retest_report.add_table(rows=1, cols=2)
+    retest_report.add_heading('Hosts Still Vulnerable')
+    vulnerable_table = retest_report.add_table(rows=1, cols=3)
     vulnerable_table.style = 'Medium Grid 1 Accent 1'
     hdr_cells = vulnerable_table.rows[0].cells
-    hdr_cells[0].text = 'Vulnerability'
-    hdr_cells[1].text = 'Hosts'
+    hdr_cells[0].text = 'Severity'
+    hdr_cells[1].text = 'Vulnerability'
+    hdr_cells[2].text = 'Hosts'
 
+    #Criticals
     for i in retest:
         # "and retest[i]['vuln_rating'] is not 'Informational' and len(retest[i]['v_hosts']) > 0" Contriubted by Zach
         if 'v_hosts' in retest[i] and retest[i]['vuln_rating'] is not 'Informational' and len(retest[i]['v_hosts']) > 0:
-            row_cells = vulnerable_table.add_row().cells
-            row_cells[0].text = retest[i]['vuln_title']
-            hosts = []
-            for h in retest[i]['v_hosts']:
-                hosts.append(h[0])
-            row_cells[1].text = ((str(ip_sort(hosts)).replace("'", "")).lstrip("[")).rstrip("]")
+            if retest[i]['vuln_rating'] is 'Critical':
+                row_cells = vulnerable_table.add_row().cells
+                row_cells[0].text = retest[i]['vuln_rating']
+                row_cells[1].text = retest[i]['vuln_title']
+                hosts = []
+                for h in retest[i]['v_hosts']:
+                    hosts.append(h[0])
+                row_cells[2].text = ((str(ip_sort(hosts)).replace("'", "")).lstrip("[")).rstrip("]")
+
+    #Highs
+    for i in retest:
+        # "and retest[i]['vuln_rating'] is not 'Informational' and len(retest[i]['v_hosts']) > 0" Contriubted by Zach
+        if 'v_hosts' in retest[i] and retest[i]['vuln_rating'] is not 'Informational' and len(retest[i]['v_hosts']) > 0:
+            if retest[i]['vuln_rating'] is 'High':
+                row_cells = vulnerable_table.add_row().cells
+                row_cells[0].text = retest[i]['vuln_rating']
+                row_cells[1].text = retest[i]['vuln_title']
+                hosts = []
+                for h in retest[i]['v_hosts']:
+                    hosts.append(h[0])
+                row_cells[2].text = ((str(ip_sort(hosts)).replace("'", "")).lstrip("[")).rstrip("]")
+
+    #Mediums
+    for i in retest:
+        # "and retest[i]['vuln_rating'] is not 'Informational' and len(retest[i]['v_hosts']) > 0" Contriubted by Zach
+        if 'v_hosts' in retest[i] and retest[i]['vuln_rating'] is not 'Informational' and len(retest[i]['v_hosts']) > 0:
+            if retest[i]['vuln_rating'] is 'Medium':
+                row_cells = vulnerable_table.add_row().cells
+                row_cells[0].text = retest[i]['vuln_rating']
+                row_cells[1].text = retest[i]['vuln_title']
+                hosts = []
+                for h in retest[i]['v_hosts']:
+                    hosts.append(h[0])
+                row_cells[2].text = ((str(ip_sort(hosts)).replace("'", "")).lstrip("[")).rstrip("]")
+
+    #Lows
+    for i in retest:
+        # "and retest[i]['vuln_rating'] is not 'Informational' and len(retest[i]['v_hosts']) > 0" Contriubted by Zach
+        if 'v_hosts' in retest[i] and retest[i]['vuln_rating'] is not 'Informational' and len(retest[i]['v_hosts']) > 0:
+            if retest[i]['vuln_rating'] is 'Low':
+                row_cells = vulnerable_table.add_row().cells
+                row_cells[0].text = retest[i]['vuln_rating']
+                row_cells[1].text = retest[i]['vuln_title']
+                hosts = []
+                for h in retest[i]['v_hosts']:
+                    hosts.append(h[0])
+                row_cells[2].text = ((str(ip_sort(hosts)).replace("'", "")).lstrip("[")).rstrip("]")
+
 
     # Build stats table
     o_total_c = 0   # Original Total Critical
