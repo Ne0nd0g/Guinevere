@@ -41,6 +41,7 @@ optional arguments:
                         Number of lines to display when selecting an engagement. Default is 10
   -A, --all-vulns       Include all vulnerability headings when there are no associated report narratives
   -V, --all-verb        Include all vureto vulnerability verbiage when there are no associated report narratives
+  --ports               Exclude port information vulnerability write-up portion of the report
   -sC                   Exclude Critical-Severity Vulnerabilities
   -sH                   Exclude High-Severity Vulnerabilities
   -sM                   Exclude Medium-Severity Vulnerabilities

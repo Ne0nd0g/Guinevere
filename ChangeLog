@@ -3,3 +3,10 @@ Added --debug command line argument
 Changed colors for printing vulnerability criticalities to the terminal
 Added gather_assessment_details function to gather additional information about the assessment from Gauntlet
 Added new menu item "Generate Assessment JSON File" and associated function generate_assessment_json
+
+1.3.0
+Added --ports command line argument. Specify the flag to EXCLUDE port information from generated report
+Generated output will now include host followed by port (i.e. 192.168.1.10:445/tcp)
+    -if port is 0/tcp or 0/udp, port information will be excluded
+Modified Vulnerability headings to a level 4 header
+Modified Vulnerability narrative to be aligned justified

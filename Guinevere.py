@@ -5,6 +5,8 @@
 
 import MySQLdb, os, docx, argparse, math, netaddr, logging, readline, sys, json
 from warnings import filterwarnings, resetwarnings
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+
 
 #Requires MySQL driver, python-mysqldb for Linux. Seems to be installed in Kali
 #Requires python-docx library, apt-get update; apt-get install -y python-pip;pip install python-docx
@@ -21,7 +23,7 @@ from warnings import filterwarnings, resetwarnings
 #################################################
 __author__ = "Russel Van Tuyl"
 __license__ = "GPL"
-__version__ = "1.2.3"
+__version__ = "1.3.0"
 __maintainer__ = "Russel Van Tuyl"
 __email__ = "Russel.VanTuyl@gmail.com"
 __status__ = "Development"
@@ -61,6 +63,8 @@ parser.add_argument('-A', '--all-vulns', action='store_true', default=False, hel
 parser.add_argument('-V', '--all-verb', action='store_true', default=False, help="Include all vureto vulnerability "
                                                                                  "verbiage when there are no "
                                                                                  "associated report narratives")
+parser.add_argument('--ports', action='store_false', default=True, help="Exclude port information vulnerability "
+                                                                        "write-up portion of the report")
 parser.add_argument('-sC', action='store_false', default=True, help="Exclude Critical-Severity Vulnerabilities")
 parser.add_argument('-sH', action='store_false', default=True, help="Exclude High-Severity Vulnerabilities")
 parser.add_argument('-sM', action='store_false', default=True, help="Exclude Medium-Severity Vulnerabilities")
@@ -213,7 +217,7 @@ def get_vulns(vuln_IDs, assessment, crosstable):
     """Build dictionary containing the assessment vulnerabilities and their associated information"""
 
     logging.info('Entered get_vulns function...')
-    vulns = {}  # TODO Get Port Number
+    vulns = {}
     plugins = ""
     tools = ['Nessus', 'Netsparker', 'Acunetix', 'BurpSuite', 'Nmap', 'Nikto', 'dirb']  # names of tools to ignore
     db = MySQLdb.connect(host=args.db_host, user=args.db_user, passwd=args.db_pass, port=args.db_port, db='GauntletData')
@@ -242,6 +246,17 @@ def get_vulns(vuln_IDs, assessment, crosstable):
     #Add all hosts with the associated vulnerability to the rpt dictionary
     print ""
     countvulnVar = 0
+
+    #Determine if cross_data_nva has a 'port' column
+    portColumn = False
+    gauntlet=db2.cursor()
+    gauntlet.execute("""SHOW COLUMNS FROM cross_data_nva FROM gauntlet_%s;""" % assessment)
+    columns = gauntlet.fetchall()
+    gauntlet.close
+    for c in columns:
+        if c[0] == 'port':
+            portColumn = True
+
     for j in vuln_IDs:
         countvulnVar = countvulnVar + 1.0
         progress = str(countvulnVar / len(vuln_IDs) * 100)
@@ -250,7 +265,16 @@ def get_vulns(vuln_IDs, assessment, crosstable):
             pass
         else:
             gauntlet=db2.cursor()
-            gauntlet.execute("""SELECT host FROM cross_data_nva WHERE cross_data_nva.table_id =%s AND vuln_id=%s AND (s1='Y' or s2='Y' or s3='Y' or s4='Y' or s5='Y')""",(crosstable,j))
+            if args.ports and portColumn:
+                gauntlet.execute(
+                    """SELECT host, port, protocol FROM cross_data_nva WHERE cross_data_nva.table_id =%s
+                    AND vuln_id=%s AND (s1='Y' or s2='Y' or s3='Y' or s4='Y' or s5='Y')""",
+                    (crosstable,j))
+            else:
+                gauntlet.execute(
+                    """SELECT host FROM cross_data_nva WHERE cross_data_nva.table_id =%s AND vuln_id=%s
+                    AND (s1='Y' or s2='Y' or s3='Y' or s4='Y' or s5='Y')""",
+                    (crosstable, j))
             temp2 = gauntlet.fetchall()
             gauntlet.close()
             #print vuln[j]['vuln_title'], temp2 #DEBUG
@@ -433,14 +457,34 @@ def int_to_string(i):
 
 
 def ip_sort(hosts):
-    """Put the provided IP addresses into order"""
+    """Put the provided list of tuples IP addresses into order"""
 
+    ips = []
+    hostnames = []
+    for ip in hosts:
+        if unicode(ip[0].split('.')[0]).isnumeric():
+            ips.append(netaddr.IPAddress(ip[0]))  # isnumeric only works with Unicode; checking for IP
+        # elseif: ip[0].isalpha():         # Checking for when a hostname is used instead of an IP
+        else:
+            hostnames.append(ip[0])
+
+    ips = sorted(ips)
+    sorted_hosts = []
+    for i in ips:                   # Add IPs
+        sorted_hosts.append(str(i))
+    for i in hostnames:             # Add Hostnames
+        sorted_hosts.append(str(i))
+    return sorted_hosts
+
+
+def ip_sort_list(hosts):
+    """Put the provided list IP addresses into order"""
+    #TODO normalize both ip_sort functions to only use one data type (list or tuple)
     ips = []
     hostnames = []
     for ip in hosts:
         if unicode(ip.split('.')[0]).isnumeric():
             ips.append(netaddr.IPAddress(ip))  # isnumeric only works with Unicode; checking for IP
-        # elseif: ip[0].isalpha():         # Checking for when a hostname is used instead of an IP
         else:
             hostnames.append(ip)
 
@@ -505,7 +549,7 @@ def generate_hosts_table(file, ass):
     sorted_hosts = []
     for host in hosts:
         sorted_hosts.append(hosts[host]['IP'])
-    sorted_hosts = ip_sort(sorted_hosts)
+    sorted_hosts = ip_sort_list(sorted_hosts)
 
     for ip in sorted_hosts:
         for k in hosts:
@@ -947,14 +991,28 @@ def get_path():
 
 def write_single_vul(rpt, report):
     """Write the single vulnerability paragraph"""
-    # TODO Add Port Number
-    report.add_heading(rpt['report_title'] + " (" + rpt['report_rating']+")")
+    report.add_heading(rpt['report_title'] + " (" + rpt['report_rating']+")", level=4)
 
     for i in rpt['vulns']:
-        hosts = []
+        vulnerableHosts = []
         for j in set(rpt['vulns'][i]['vuln_hosts']):  # Build Single Dimensional List
-            hosts.append(j[0])
-        hosts = ip_sort(hosts)  # Create a unique & sorted list of hosts (avoids duplicate hosts)
+            vulnerableHosts.append(j)
+        sortedHosts = ip_sort(vulnerableHosts) # Create a unique & sorted list of hosts (avoids duplicate hosts)
+        hosts = []
+        for h in sortedHosts:
+            for h2 in vulnerableHosts:
+                if h2[0] == h:
+                    if args.ports:
+                        if len(h2) == 3:
+                            if h2[1] != '0' and h2[2] != 'icmp':
+                                hosts.append(h2[0] + ":" + h2[1] + "/" + h2[2])
+                            else:
+                                hosts.append(h2[0])
+                        else:
+                            hosts.append(h2[0])
+                    else:
+                        hosts.append(h2[0])
+
         if len(hosts) == 1:         # If there is just one host
             p = rpt['report_identification'].replace("[n]", int_to_string(len(hosts))+ ' ('+hosts[0]+')')
         elif len(hosts) == 2:       # If there are two hosts
@@ -978,8 +1036,10 @@ def write_single_vul(rpt, report):
             p += rpt['report_impact']
         else:
             p += (" " + rpt['report_impact'])
-        report.add_paragraph(p, style='Normal')
-        report.add_paragraph(rpt['report_recommendation'], style='Normal')
+        p = report.add_paragraph(p, style='Normal')
+        p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        p = report.add_paragraph(rpt['report_recommendation'], style='Normal')
+        p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
 
         if len(hosts) >= 6:     # Draw the table
             c = 4  # number of desired columns
@@ -1008,7 +1068,7 @@ def write_single_vul(rpt, report):
 
 def write_multi_vul(rpt, report):
     """Write report data for grouped or multi vulnerabilities"""
-    # TODO Add Port Number
+
     total_hosts = 0
     for i in rpt['vulns']:
         if args.sC and rpt['vulns'][i]['vuln_rating'] == 'Critical':
@@ -1022,7 +1082,7 @@ def write_multi_vul(rpt, report):
         elif args.sI and rpt['vulns'][i]['vuln_rating'] == 'Informational':
             total_hosts += len(rpt['vulns'][i]['vuln_hosts'])
 
-    report.add_heading(rpt['report_title'] + " (" + rpt['report_rating']+")", 3)
+    report.add_heading(rpt['report_title'] + " (" + rpt['report_rating']+")", level=4)
     p = rpt['report_identification'].replace("[n]", int_to_string(total_hosts))
     p = p.rstrip('\n')
     p = p.rstrip('\t')
@@ -1037,8 +1097,10 @@ def write_multi_vul(rpt, report):
     else:
         p += (" " + rpt['report_impact'])
 
-    report.add_paragraph(p, style='Normal')
-    report.add_paragraph(rpt['report_recommendation'], style='Normal')
+    p = report.add_paragraph(p, style='Normal')
+    p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    p = report.add_paragraph(rpt['report_recommendation'], style='Normal')
+    p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
 
     table = report.add_table(rows=1, cols=3)
     hdr_cells = table.rows[0].cells
@@ -1072,7 +1134,7 @@ def write_multi_vul(rpt, report):
 
 
 def write_all_vuln(vuln, the_Report):
-    # TODO Add Port Number
+
     print "["+note+"]Writing list of all vulnerabilities to the report: "
     the_Report.add_page_break()
     the_Report.add_heading("List of Assessment Vulnerabilities", 1)
@@ -1456,11 +1518,13 @@ def pentest_checklist():
 
     main_menu()
 
+
 if args.debug:
     print "\n["+warn+"]Debug output enabled"
     logging.basicConfig(stream=sys.stdout, format='%(asctime)s\t%(levelname)s\t%(message)s',
                         datefmt='%Y-%m-%d %I:%M:%S %p', level=logging.DEBUG)  # Log to STDOUT
     raw_input("Press enter to continue...")
+
 
 if __name__ == '__main__':
     try:
