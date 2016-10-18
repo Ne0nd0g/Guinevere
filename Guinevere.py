@@ -23,7 +23,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 #################################################
 __author__ = "Russel Van Tuyl"
 __license__ = "GPL"
-__version__ = "1.3.0"
+__version__ = "1.3.1"
 __maintainer__ = "Russel Van Tuyl"
 __email__ = "Russel.VanTuyl@gmail.com"
 __status__ = "Development"
@@ -47,6 +47,7 @@ note = "\033[0;0;33m-\033[0m"
 warn = "\033[0;0;31m!\033[0m"
 info = "\033[0;0;36mi\033[0m"
 question = "\033[0;0;37m?\033[0m"
+debug = "\033[0;0;31m[DEBUG]\033[0m"
 
 #Parse command line arguments
 parser = argparse.ArgumentParser()
@@ -504,8 +505,9 @@ def generate_hosts_table(file, ass):
     file.add_page_break()
     logging.info('Entering the generate_hosts_table function')
     print "["+note+"]Generating Interesting Hosts Table"
-    #Build dictionary of host IDs and IPs from gauntlet's 'hosts' table
-    engagement = db_query("""SELECT value FROM gauntlet_"""+ ass+""".engagement_details WHERE engagement_details.key = 'Engagement Task 1'""", ass)
+    # Build dictionary of host IDs and IPs from gauntlet's 'hosts' table
+    engagement = db_query("""SELECT value FROM gauntlet_""" + ass +
+                          """.engagement_details WHERE engagement_details.key = 'Engagement Task 1'""", ass)
     if engagement:
         if 'Internal' in engagement[0][0]:
             temp = db_query("""SELECT host_id, ip_address, machine_name from hosts""", ass)
@@ -997,7 +999,7 @@ def write_single_vul(rpt, report):
         vulnerableHosts = []
         for j in set(rpt['vulns'][i]['vuln_hosts']):  # Build Single Dimensional List
             vulnerableHosts.append(j)
-        sortedHosts = ip_sort(vulnerableHosts) # Create a unique & sorted list of hosts (avoids duplicate hosts)
+        sortedHosts = ip_sort(vulnerableHosts)  # Create a unique & sorted list of hosts (avoids duplicate hosts)
         hosts = []
         for h in sortedHosts:
             for h2 in vulnerableHosts:
@@ -1005,13 +1007,18 @@ def write_single_vul(rpt, report):
                     if args.ports:
                         if len(h2) == 3:
                             if h2[1] != '0' and h2[2] != 'icmp':
-                                hosts.append(h2[0] + ":" + h2[1] + "/" + h2[2])
+                                host_info = h2[0] + ":" + h2[1] + "/" + h2[2]
+                                if host_info not in hosts:
+                                    hosts.append(host_info)
                             else:
-                                hosts.append(h2[0])
+                                if h2[0] not in hosts:
+                                    hosts.append(h2[0])
                         else:
-                            hosts.append(h2[0])
+                            if h2[0] not in hosts:
+                                hosts.append(h2[0])
                     else:
-                        hosts.append(h2[0])
+                        if h2[0] not in hosts:
+                            hosts.append(h2[0])
 
         if len(hosts) == 1:         # If there is just one host
             p = rpt['report_identification'].replace("[n]", int_to_string(len(hosts))+ ' ('+hosts[0]+')')
@@ -1041,6 +1048,9 @@ def write_single_vul(rpt, report):
         p = report.add_paragraph(rpt['report_recommendation'], style='Normal')
         p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
 
+        if args.debug:
+            print debug + "Vulnerable Hosts: %s" % hosts
+            raw_input(debug + "Press any key to continue")
         if len(hosts) >= 6:     # Draw the table
             c = 4  # number of desired columns
             r = int(math.ceil((len(hosts) / float(4))))  # Determine number of rows for table using a max of 4 columns
