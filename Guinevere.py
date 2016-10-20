@@ -23,7 +23,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 #################################################
 __author__ = "Russel Van Tuyl"
 __license__ = "GPL"
-__version__ = "1.3.1"
+__version__ = "1.3.2"
 __maintainer__ = "Russel Van Tuyl"
 __email__ = "Russel.VanTuyl@gmail.com"
 __status__ = "Development"
@@ -480,7 +480,7 @@ def ip_sort(hosts):
 
 def ip_sort_list(hosts):
     """Put the provided list IP addresses into order"""
-    #TODO normalize both ip_sort functions to only use one data type (list or tuple)
+    # TODO normalize both ip_sort functions to only use one data type (list or tuple)
     ips = []
     hostnames = []
     for ip in hosts:
@@ -792,7 +792,7 @@ def retest():
                 hosts = []
                 for h in retest[i]['v_hosts']:
                     hosts.append(h[0])
-                row_cells[2].text = ((str(ip_sort(hosts)).replace("'", "")).lstrip("[")).rstrip("]")
+                row_cells[2].text = ((str(ip_sort_list(hosts)).replace("'", "")).lstrip("[")).rstrip("]")
 
     #Highs
     for i in retest:
@@ -805,7 +805,7 @@ def retest():
                 hosts = []
                 for h in retest[i]['v_hosts']:
                     hosts.append(h[0])
-                row_cells[2].text = ((str(ip_sort(hosts)).replace("'", "")).lstrip("[")).rstrip("]")
+                row_cells[2].text = ((str(ip_sort_list(hosts)).replace("'", "")).lstrip("[")).rstrip("]")
 
     #Mediums
     for i in retest:
@@ -818,7 +818,7 @@ def retest():
                 hosts = []
                 for h in retest[i]['v_hosts']:
                     hosts.append(h[0])
-                row_cells[2].text = ((str(ip_sort(hosts)).replace("'", "")).lstrip("[")).rstrip("]")
+                row_cells[2].text = ((str(ip_sort_list(hosts)).replace("'", "")).lstrip("[")).rstrip("]")
 
     #Lows
     for i in retest:
@@ -831,7 +831,7 @@ def retest():
                 hosts = []
                 for h in retest[i]['v_hosts']:
                     hosts.append(h[0])
-                row_cells[2].text = ((str(ip_sort(hosts)).replace("'", "")).lstrip("[")).rstrip("]")
+                row_cells[2].text = ((str(ip_sort_list(hosts)).replace("'", "")).lstrip("[")).rstrip("]")
 
 
     # Build stats table
