@@ -6,10 +6,11 @@
 import MySQLdb, os, docx, argparse, math, netaddr, logging, readline, sys, json
 from warnings import filterwarnings, resetwarnings
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-
+from cvss import CVSS2
 
 #Requires MySQL driver, python-mysqldb for Linux. Seems to be installed in Kali
-#Requires python-docx library, apt-get update; apt-get install -y python-pip;pip install python-docx
+#Requires python-docx library, apt-get update; apt-get install -y python-pip mysql-client;pip install python-docx
+#Requires cvsss library; pip install cvss
 ### OSX Install Notes:
 # sudo su -
 # export CFLAGS=-Qunused-arguments
@@ -23,7 +24,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 #################################################
 __author__ = "Russel Van Tuyl"
 __license__ = "GPL"
-__version__ = "1.3.2"
+__version__ = "1.4.0"
 __maintainer__ = "Russel Van Tuyl"
 __email__ = "Russel.VanTuyl@gmail.com"
 __status__ = "Development"
@@ -57,7 +58,6 @@ parser.add_argument('-P', '--db-pass', type=str, default=g_pass, help="MySQL Dat
 parser.add_argument('-p', '--db-port', type=str, default=g_p, help="MySQL Database Port. Default set in script")
 parser.add_argument('-l', '--lines', type=int, default=10, help="Number of lines to display when selecting an "
                                                                 "engagement. Default is 10")
-#parser.add_argument('-X', '--db-xml', type=argparse.FileType('r'), help="XML Database file")
 parser.add_argument('-A', '--all-vulns', action='store_true', default=False, help="Include all vulnerability headings "
                                                                                   "when there are no associated report "
                                                                                   "narratives")
@@ -66,6 +66,7 @@ parser.add_argument('-V', '--all-verb', action='store_true', default=False, help
                                                                                  "associated report narratives")
 parser.add_argument('--ports', action='store_false', default=True, help="Exclude port information vulnerability "
                                                                         "write-up portion of the report")
+parser.add_argument('--cvss', action='store_false', default=True, help="Exclude CVSS scores from vulnerability titles")
 parser.add_argument('-sC', action='store_false', default=True, help="Exclude Critical-Severity Vulnerabilities")
 parser.add_argument('-sH', action='store_false', default=True, help="Exclude High-Severity Vulnerabilities")
 parser.add_argument('-sM', action='store_false', default=True, help="Exclude Medium-Severity Vulnerabilities")
@@ -77,7 +78,6 @@ parser.add_argument('-aD', '--assessment-date', action='store_true', default=Fal
 parser.add_argument('-T', '--tool-output', action='store_false', default=True, help="Exclude Tool Output When Printing "
                                                                                     "G-Checklist")
 parser.add_argument('--debug', action='store_true', default=False, help="Enable debug output to console")
-#parser.add_argument('-O', '--output', type=str, required=True, help="Output directory for .docx file")
 args = parser.parse_args()
 
 
@@ -993,7 +993,17 @@ def get_path():
 
 def write_single_vul(rpt, report):
     """Write the single vulnerability paragraph"""
-    report.add_heading(rpt['report_title'] + " (" + rpt['report_rating']+")", level=4)
+
+    cvss = None
+    if len(rpt['vulns']) is 1:
+        for r in rpt['vulns']:
+            cvss = get_cvss(r)
+
+    if args.cvss:
+        report.add_heading("%s (CVSS: %0.1f - %s)" % (rpt['report_title'], cvss.base_score, rpt['report_rating']),
+                           level=4)
+    else:
+        report.add_heading("%s (%s)" % (rpt['report_title'], rpt['report_rating']), level=4)
 
     for i in rpt['vulns']:
         vulnerableHosts = []
@@ -1112,33 +1122,82 @@ def write_multi_vul(rpt, report):
     p = report.add_paragraph(rpt['report_recommendation'], style='Normal')
     p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
 
-    table = report.add_table(rows=1, cols=3)
-    hdr_cells = table.rows[0].cells
-    hdr_cells[0].text = 'Severity'
-    hdr_cells[1].text = 'Vulnerability'
-    hdr_cells[2].text = 'Affected Host(s)'
+    table = None
+    hdr_cells = None
+
+    if args.cvss:
+        table = report.add_table(rows=1, cols=4)
+        hdr_cells = table.rows[0].cells
+        hdr_cells[0].text = 'Severity'
+        hdr_cells[1].text = 'CVSS'
+        hdr_cells[2].text = 'Vulnerability'
+        hdr_cells[3].text = 'Affected Host(s)'
+    else:
+        table = report.add_table(rows=1, cols=3)
+        hdr_cells = table.rows[0].cells
+        hdr_cells[0].text = 'Severity'
+        hdr_cells[1].text = 'Vulnerability'
+        hdr_cells[2].text = 'Affected Host(s)'
+
     table.style = 'Medium Grid 1 Accent 1'
-    def writeRow(r, t, h):
+
+    def writeRow(r, t, h, c=None):
         row_cells = table.add_row().cells
-        row_cells[0].text = r
-        row_cells[1].text = t
-        row_cells[2].text = h
+        if c is not None:
+            row_cells[0].text = r
+            row_cells[1].text = c
+            row_cells[2].text = t
+            row_cells[3].text = h
+        else:
+            row_cells[0].text = r
+            row_cells[1].text = t
+            row_cells[2].text = h
 
     for i in rpt['vulns']:
         if args.sC and rpt['vulns'][i]['vuln_rating'] == 'Critical':
-            writeRow(rpt['vulns'][i]['vuln_rating'], rpt['vulns'][i]['vuln_title'], str(len(rpt['vulns'][i]['vuln_hosts'])))
+            cvss = get_cvss(i)
+            if args.cvss:
+                writeRow(rpt['vulns'][i]['vuln_rating'], rpt['vulns'][i]['vuln_title'],
+                         str(len(rpt['vulns'][i]['vuln_hosts'])), "%0.1f" % cvss.base_score)
+            else:
+                writeRow(rpt['vulns'][i]['vuln_rating'], rpt['vulns'][i]['vuln_title'],
+                         str(len(rpt['vulns'][i]['vuln_hosts'])))
     for i in rpt['vulns']:
         if args.sH and rpt['vulns'][i]['vuln_rating'] == 'High':
-            writeRow(rpt['vulns'][i]['vuln_rating'], rpt['vulns'][i]['vuln_title'], str(len(rpt['vulns'][i]['vuln_hosts'])))
+            cvss = get_cvss(i)
+            if args.cvss:
+                writeRow(rpt['vulns'][i]['vuln_rating'], rpt['vulns'][i]['vuln_title'],
+                         str(len(rpt['vulns'][i]['vuln_hosts'])), "%0.1f" % cvss.base_score)
+            else:
+                writeRow(rpt['vulns'][i]['vuln_rating'], rpt['vulns'][i]['vuln_title'],
+                         str(len(rpt['vulns'][i]['vuln_hosts'])))
     for i in rpt['vulns']:
         if args.sM and rpt['vulns'][i]['vuln_rating'] == 'Medium':
-            writeRow(rpt['vulns'][i]['vuln_rating'], rpt['vulns'][i]['vuln_title'], str(len(rpt['vulns'][i]['vuln_hosts'])))
+            cvss = get_cvss(i)
+            if args.cvss:
+                writeRow(rpt['vulns'][i]['vuln_rating'], rpt['vulns'][i]['vuln_title'],
+                         str(len(rpt['vulns'][i]['vuln_hosts'])), "%0.1f" % cvss.base_score)
+            else:
+                writeRow(rpt['vulns'][i]['vuln_rating'], rpt['vulns'][i]['vuln_title'],
+                         str(len(rpt['vulns'][i]['vuln_hosts'])))
     for i in rpt['vulns']:
         if args.sL and rpt['vulns'][i]['vuln_rating'] == 'Low':
-            writeRow(rpt['vulns'][i]['vuln_rating'], rpt['vulns'][i]['vuln_title'], str(len(rpt['vulns'][i]['vuln_hosts'])))
+            cvss = get_cvss(i)
+            if args.cvss:
+                writeRow(rpt['vulns'][i]['vuln_rating'], rpt['vulns'][i]['vuln_title'],
+                         str(len(rpt['vulns'][i]['vuln_hosts'])), "%0.1f" % cvss.base_score)
+            else:
+                writeRow(rpt['vulns'][i]['vuln_rating'], rpt['vulns'][i]['vuln_title'],
+                         str(len(rpt['vulns'][i]['vuln_hosts'])))
     for i in rpt['vulns']:
         if args.sI and rpt['vulns'][i]['vuln_rating'] == 'Informational':
-            writeRow(rpt['vulns'][i]['vuln_rating'], rpt['vulns'][i]['vuln_title'], str(len(rpt['vulns'][i]['vuln_hosts'])))
+            cvss = get_cvss(i)
+            if args.cvss:
+                writeRow(rpt['vulns'][i]['vuln_rating'], rpt['vulns'][i]['vuln_title'],
+                         str(len(rpt['vulns'][i]['vuln_hosts'])), "%0.1f" % cvss.base_score)
+            else:
+                writeRow(rpt['vulns'][i]['vuln_rating'], rpt['vulns'][i]['vuln_title'],
+                         str(len(rpt['vulns'][i]['vuln_hosts'])))
 
     return report
 
@@ -1527,6 +1586,115 @@ def pentest_checklist():
     raw_input("["+note+"]Press enter to return to the main menu")
 
     main_menu()
+
+
+def get_cvss(gnaat_id, version=2):
+    """Get a CVSS object using the gnaat_id from the vulns table in the GauntletData database"""
+
+    logging.info('Entered into get_cvss function')
+
+    c = db_query("SELECT DISTINCT `cvss_access_vector`, `cvss_access_complexity`, `cvss_authentication`, "
+                 "`cvss_confidentiality_impact`, `cvss_integrity_impact`, `cvss_availability_impact`, "
+                 "`cvss_exploitability`, `cvss_remediation_level`, `cvss_report_confidence` FROM "
+                 "vulns WHERE gnaat_id='%s';" % gnaat_id, "GauntletData")
+
+    AV = None   # Access Vector
+    AC = None   # Access Complexity
+    Au = None   # Authentication
+    C = None    # Confidentiality
+    I = None    # Integrity
+    A = None    # Availability
+    E = None    # Exploitability
+    RL = None   # Remediation Level
+    RC = None   # Report Confidence
+
+    # Access Vector
+    if c[0][0] == 'remote':
+        AV = 'A'
+    elif c[0][0] == 'local':
+        AV = 'L'
+    elif c[0][0] == 'network':
+        AV = 'N'
+
+    # Access Complexity
+    if c[0][1] == 'low':
+        AC = 'L'
+    elif c[0][1] == 'medium':
+        AC = 'M'
+    elif c[0][1] == 'high':
+        AC = 'H'
+
+    # Authentication
+    if c[0][2] == 'not_required':
+        Au = 'N'
+    elif c[0][2] == 'required':
+        Au = 'S'
+    elif c[0][2] == 'multiple':
+        Au = 'M'
+
+    # Confidentiality
+    if c[0][3] == 'none':
+        C = 'N'
+    elif c[0][3] == 'complete':
+        C = 'C'
+    elif c[0][3] == 'partial':
+        C = 'P'
+
+    # Integrity
+    if c[0][4] == 'none':
+        I = 'N'
+    elif c[0][4] == 'complete':
+        I = 'C'
+    elif c[0][4] == 'partial':
+        I = 'P'
+
+    # Availability
+    if c[0][5] == 'none':
+        A = 'N'
+    elif c[0][5] == 'complete':
+        A = 'C'
+    elif c[0][5] == 'partial':
+        A = 'P'
+
+    # Exploitability
+    if c[0][6] == 'not_defined':
+        E = 'ND'
+    elif c[0][6] == 'unproven':
+        E = 'U'
+    elif c[0][6] == 'proof_of_concept':
+        E = 'POC'
+    elif c[0][6] == 'functional':
+        E = 'F'
+    elif c[0][6] == 'high':
+        E = 'H'
+
+    # Remediation Level
+    if c[0][7] == 'not_defined':
+        RL = 'ND'
+    elif c[0][7] == 'official':
+        RL = 'OF'
+    elif c[0][7] == 'workaround':
+        RL = 'W'
+    elif c[0][7] == 'unavailable':
+        RL = 'U'
+    elif c[0][7] == 'temporary':
+        RL = 'TF'
+
+    # Report Confidence
+    if c[0][8] == 'not_defined':
+        RC = 'ND'
+    elif c[0][8] == 'confirmed':
+        RC = 'C'
+    elif c[0][8] == 'unconfirmed':
+        RC = 'UC'
+    elif c[0][8] == 'uncorroborated':
+        RC = 'UR'
+
+    vector = 'AV:%s/AC:%s/Au:%s/C:%s/I:%s/A:%s/E:%s/RL:%s/RC:%s' % (AV, AC, Au, C, I, A, E, RL, RC)
+
+    cvss = CVSS2(vector)
+
+    return cvss
 
 
 if args.debug:

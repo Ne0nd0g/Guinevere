@@ -10,3 +10,10 @@ Generated output will now include host followed by port (i.e. 192.168.1.10:445/t
     -if port is 0/tcp or 0/udp, port information will be excluded
 Modified Vulnerability headings to a level 4 header
 Modified Vulnerability narrative to be aligned justified
+
+1.4.0
+Addedd --cvss command line argument. Specify the flag to EXCLUDE CVSS scores from the vulnerability titles
+Imported a new library: cvss
+Added new get_cvss function
+Updated write_multi_vul & write_single_vul to print CVSS score with the header in this format: "CVSS: 10.0 - High"
+Added new CVSS column to multi vuln tables
